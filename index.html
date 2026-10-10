@@ -18037,7 +18037,7 @@ const Arena = {
     const col = (u) => (u ? (u.team === 0 ? TEAMS[0].css : u.team === 1 ? TEAMS[1].css : TEAMS[2].css) : '#ccc');
     const el = document.createElement('div'); el.className = 'kf';
     if (victim) el.innerHTML = `${killer ? `<b style="color:${col(killer)}">${name(killer)}</b>` : '<b>The Arena</b>'}<i>𓂀</i><b style="color:${col(victim)}">${name(victim)}</b>`;
-    else el.innerHTML = `${killer ? `<b style="color:${col(killer)}">${name(killer)}</b> ` : ''}<span>${text}</span>`;
+    else el.innerHTML = `${killer ? `<b style="color:${col(killer)}">${name(killer)}</b> ` : ''}<span>${netEsc(text)}</span>`;
     if (victim === this.pu || killer === this.pu) el.classList.add('me');
     this.ui.feed.prepend(el);
     while (this.ui.feed.children.length > 6) this.ui.feed.lastChild.remove();
