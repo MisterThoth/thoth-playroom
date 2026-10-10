@@ -1,23 +1,22 @@
 # Thoth Playroom
 
-Et SMITE-inspirert 3D-spill i nettleseren, med Thoth, Ra, Bastet, Hecate, Skadi, Ullr og Bacchus.
+A SMITE-inspired 3D game in the browser, starring Thoth, Ra, Bastet, Hecate, Skadi, Ullr and Bacchus.
 
-**Spill her:** https://misterthoth.github.io/thoth-playroom/
+**Play here:** https://misterthoth.github.io/thoth-playroom/
 
-## Spill med venner (gratis)
+## Play with friends (free)
 
-1. Åpne spillet i Chrome eller Edge og trykk **Online med venner**.
-2. Skriv et kallenavn og trykk **Lag rom**. Send invitasjonslenken til vennene dine.
-3. Hver spiller velger **Blått lag** eller **Rødt lag** og en gud, og trykker **Klar**.
-4. Verten trykker **Start**. Tomme plasser fylles med bots, så det alltid blir 5 mot 5.
+1. Open the game in Chrome or Edge and press **Play online with friends**.
+2. Enter a nickname and press **Create room**. Send the invite link to your friends.
+3. Each player picks **Blue team** or **Red team** and a god, then presses **Ready**.
+4. The host presses **Start**. Empty slots are filled with bots, so it is always 5 vs 5.
 
-Samme lag = dere spiller sammen. Hvert sitt lag = dere spiller mot hverandre.
+Same team = you play together. Different teams = you play against each other.
 
-Spillerne kobles direkte sammen (WebRTC). Det trengs ingen konto og ingen server.
-Finner dere ikke hverandre, sjekk at alle har samme romkode. Noen jobb- og skolenettverk blokkerer
-direkte tilkoblinger, og da kan det hjelpe å bruke mobilnett eller et annet nettverk.
+Players connect directly to each other (WebRTC). When a network blocks direct connections, the game falls back
+automatically to free public MQTT relays. No account and no server needed.
 
-## Teknisk
+## Technical
 
-Én `index.html` (three.js r170 og Trystero ligger i `vendor/`) og `assets/` med 3D-modeller, lyd og stemmer.
-Kjøres lokalt med `python3 -m http.server 8000` og http://localhost:8000.
+One `index.html` (three.js r170, Trystero and mqtt.js are in `vendor/`) plus `assets/` with 3D models, sound and voices.
+Run locally with `python3 -m http.server 8000` and open http://localhost:8000.
