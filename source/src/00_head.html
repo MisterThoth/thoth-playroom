@@ -1,0 +1,318 @@
+<title>Thoth Playroom</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800;900&family=Rajdhani:wght@500;600;700&family=Noto+Sans+Egyptian+Hieroglyphs&display=swap">
+<style>
+/* Layout: full-bleed WebGL stage; the HUD is pinned to the screen edges like a MOBA client. Single dark look by design. */
+:root {
+  color-scheme: dark;
+  --night: #060a17;          /* page ground + zenith of the sky */
+  --panel: rgba(8, 13, 30, 0.84);
+  --panel-solid: #0b1226;
+  --edge: rgba(214, 170, 82, 0.55);
+  --edge-soft: rgba(214, 170, 82, 0.22);
+  --gold: #e6b85a;           /* ornament, headings */
+  --gold-dim: #9c7a36;
+  --glyph: #82d9ff;          /* Thoth's magic */
+  --ember: #ff9b3d;          /* Glyph of Pain */
+  --parchment: #efe3c4;      /* text */
+  --muted: #9aa3bd;
+  --hp: #3fd06e;
+  --hp-dark: #13502a;
+  --mp: #3f8cff;
+  --mp-dark: #12306e;
+  --danger: #ff5a4f;
+  --font-display: "Cinzel", "Trajan Pro", Georgia, serif;
+  --font-ui: "Rajdhani", "Avenir Next Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-glyph: "Noto Sans Egyptian Hieroglyphs", "Segoe UI Historic", serif;
+}
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; background: var(--night); color: var(--parchment); overflow: hidden; }
+body { font-family: var(--font-ui); -webkit-font-smoothing: antialiased; user-select: none; }
+#app { position: fixed; inset: 0; overflow: hidden; background: var(--night); }
+#gl, #fx2d { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#fx2d { pointer-events: none; }
+button { font-family: var(--font-ui); }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--glyph); outline-offset: 2px; }
+
+/* ---------- HUD ---------- */
+#hud { position: absolute; inset: 0; pointer-events: none; }
+#topleft { position: absolute; left: 16px; top: calc(14px + env(safe-area-inset-top, 0px)); display: grid; gap: 6px; }
+.chip { background: var(--panel); border: 1px solid var(--edge-soft); color: var(--parchment); padding: 5px 10px; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; font-weight: 600; }
+.chip b { color: var(--gold); font-weight: 700; }
+#keys { background: var(--panel); border: 1px solid var(--edge-soft); padding: 8px 10px; font-size: 13px; line-height: 1.55; color: var(--muted); max-width: 270px; }
+#keys kbd { font-family: var(--font-ui); font-weight: 700; color: var(--parchment); background: rgba(130, 217, 255, .1); border: 1px solid rgba(130, 217, 255, .35); padding: 0 5px; margin-right: 4px; }
+#keys[hidden] { display: none; }
+
+#bottom { position: absolute; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); display: flex; align-items: flex-end; gap: 10px; }
+#portrait { position: relative; width: 92px; height: 92px; border: 2px solid var(--edge); background: radial-gradient(circle at 50% 35%, #233a7a, #070b18 72%); box-shadow: 0 0 22px rgba(0,0,0,.6); }
+#portrait canvas { width: 100%; height: 100%; display: block; }
+#lvl { position: absolute; left: -8px; bottom: -8px; width: 30px; height: 30px; display: grid; place-items: center; font: 700 16px var(--font-ui); background: var(--panel-solid); border: 2px solid var(--gold); color: var(--gold); border-radius: 50%; }
+#core { display: grid; gap: 5px; }
+#abilities { display: flex; gap: 7px; align-items: flex-end; }
+.ab { position: relative; width: 62px; height: 62px; border: 2px solid var(--edge); background: var(--panel-solid); box-shadow: 0 3px 12px rgba(0,0,0,.55); pointer-events: auto; }
+.ab.passive { width: 42px; height: 42px; align-self: flex-end; }
+.ab canvas { width: 100%; height: 100%; display: block; }
+.ab .cd { position: absolute; inset: 0; background: conic-gradient(rgba(4,7,18,.78) var(--p, 0%), transparent 0); pointer-events: none; }
+.ab .cdtxt { position: absolute; inset: 0; display: grid; place-items: center; font: 700 22px var(--font-ui); color: #fff; text-shadow: 0 2px 4px #000; pointer-events: none; }
+.ab .key { position: absolute; left: -2px; top: -2px; min-width: 16px; height: 16px; padding: 0 3px; font: 700 12px/16px var(--font-ui); text-align: center; background: var(--panel-solid); color: var(--gold); border: 1px solid var(--edge); }
+.ab .cost { position: absolute; right: 2px; bottom: 1px; font: 700 12px var(--font-ui); color: #9cc4ff; text-shadow: 0 1px 2px #000; }
+.ab .pips { position: absolute; left: 0; right: 0; bottom: -7px; display: flex; justify-content: center; gap: 2px; }
+.ab .pips i { width: 8px; height: 4px; background: #2a3150; border: 1px solid #000; }
+.ab .pips i.on { background: var(--gold); }
+.ab.ready { border-color: var(--gold); }
+.ab.armed { border-color: var(--glyph); box-shadow: 0 0 0 2px rgba(130,217,255,.35), 0 0 18px rgba(130,217,255,.55); }
+.ab.nomana canvas { filter: grayscale(.7) brightness(.6) sepia(.3) hue-rotate(180deg); }
+.ab.flash { animation: abflash .35s ease-out; }
+@keyframes abflash { from { box-shadow: 0 0 0 3px var(--danger); } to { box-shadow: 0 0 0 0 transparent; } }
+.ab .stack { position: absolute; right: 2px; top: 1px; font: 700 13px var(--font-ui); color: var(--gold); text-shadow: 0 1px 2px #000; }
+
+.bar { position: relative; height: 15px; background: #070a14; border: 1px solid #000; outline: 1px solid var(--edge-soft); overflow: hidden; }
+.bar .fill { position: absolute; inset: 0; transform-origin: left center; }
+.bar.hp .fill { background: linear-gradient(180deg, #6df092, var(--hp) 45%, #1f8a45); }
+.bar.mp .fill { background: linear-gradient(180deg, #7fb6ff, var(--mp) 45%, #1d4fb8); }
+.bar .txt { position: absolute; inset: 0; display: grid; place-items: center; font: 700 12px var(--font-ui); letter-spacing: .04em; color: #fff; text-shadow: 0 1px 2px #000; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 1100px) { #meter, #reckon { bottom: calc(150px + env(safe-area-inset-bottom, 0px)); } }
+#buffs { position: absolute; left: 50%; bottom: calc(132px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); display: flex; gap: 6px; }
+.buff { position: relative; width: 34px; height: 34px; border: 1px solid var(--edge); background: var(--panel-solid); }
+.buff canvas { width: 100%; height: 100%; display: block; }
+.buff span { position: absolute; left: 0; right: 0; bottom: -15px; text-align: center; font: 700 12px var(--font-ui); color: var(--parchment); text-shadow: 0 1px 2px #000; }
+.buff b { position: absolute; right: 1px; top: -1px; font: 700 12px var(--font-ui); color: var(--gold); text-shadow: 0 1px 2px #000; }
+
+#meter { position: absolute; right: 16px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); min-width: 168px; background: var(--panel); border: 1px solid var(--edge-soft); padding: 7px 10px; font-size: 13px; color: var(--muted); display: grid; gap: 2px; font-variant-numeric: tabular-nums; }
+#meter .row { display: flex; justify-content: space-between; gap: 12px; }
+#meter .row b { color: var(--parchment); font-weight: 700; }
+#meter .title { font: 700 11px var(--font-display); letter-spacing: .14em; color: var(--gold); text-transform: uppercase; }
+
+#reckon { position: absolute; left: 16px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); min-width: 150px; background: var(--panel); border: 1px solid var(--edge-soft); padding: 7px 10px; font-size: 13px; color: var(--muted); display: grid; gap: 4px; }
+#reckon .title { font: 700 11px var(--font-display); letter-spacing: .14em; color: var(--gold); text-transform: uppercase; }
+#reckon .stacks { display: flex; gap: 4px; }
+#reckon .stacks i { width: 16px; height: 16px; border: 1px solid var(--gold-dim); background: #0a1024; display: grid; place-items: center; font: normal 11px var(--font-glyph); color: transparent; }
+#reckon .stacks i.on { background: rgba(230, 184, 90, .25); color: var(--gold); border-color: var(--gold); }
+#reckon .stacks i.locked { opacity: .35; }
+#reckon .names { height: 4px; background: #0a1024; border: 1px solid #000; }
+#reckon .names div { height: 100%; background: var(--glyph); width: 0; }
+
+#channel { position: absolute; left: 50%; top: 60%; transform: translateX(-50%); text-align: center; display: grid; gap: 6px; justify-items: center; }
+#channel .t { font: 800 15px var(--font-display); letter-spacing: .2em; color: var(--glyph); text-shadow: 0 0 12px rgba(130,217,255,.8); text-transform: uppercase; }
+#channel .pages { display: flex; gap: 6px; }
+#channel .pages i { width: 34px; height: 8px; background: rgba(10, 16, 36, .9); border: 1px solid var(--edge); }
+#channel .pages i.on { background: linear-gradient(90deg, #bff0ff, var(--glyph)); box-shadow: 0 0 10px var(--glyph); }
+#channel .h { font-size: 13px; color: var(--muted); }
+
+#toast { position: absolute; left: 50%; top: 18%; transform: translateX(-50%); font: 700 16px var(--font-display); letter-spacing: .12em; color: var(--gold); text-shadow: 0 0 12px rgba(0,0,0,.9), 0 2px 3px #000; opacity: 0; transition: opacity .25s; text-align: center; white-space: nowrap; }
+#toast.on { opacity: 1; }
+#warn { position: absolute; left: 50%; bottom: 168px; transform: translateX(-50%); font: 700 15px var(--font-ui); color: var(--danger); text-shadow: 0 1px 3px #000; opacity: 0; transition: opacity .2s; }
+#warn.on { opacity: 1; }
+
+#lockhint { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); background: var(--panel); border: 1px solid var(--edge); padding: 14px 20px; font: 600 16px var(--font-ui); color: var(--parchment); text-align: center; pointer-events: auto; cursor: pointer; }
+#lockhint small { display: block; color: var(--muted); font-size: 13px; margin-top: 4px; }
+
+/* ---------- Tooltip ---------- */
+#tooltip { position: absolute; width: 340px; max-width: calc(100vw - 32px); background: rgba(6, 10, 24, .96); border: 1px solid var(--edge); padding: 12px 14px; font-size: 14px; line-height: 1.45; color: var(--parchment); pointer-events: none; z-index: 30; box-shadow: 0 10px 30px rgba(0,0,0,.6); }
+#tooltip h4 { margin: 0 0 2px; font: 800 15px var(--font-display); letter-spacing: .06em; color: var(--gold); }
+#tooltip .k { color: var(--glyph); font-weight: 700; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; }
+#tooltip p { margin: 6px 0; }
+#tooltip dl { display: grid; grid-template-columns: auto 1fr; gap: 1px 10px; margin: 6px 0 0; font-size: 13px; }
+#tooltip dt { color: var(--muted); }
+#tooltip dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* ---------- Start screen ---------- */
+#start { position: absolute; inset: 0; display: grid; align-content: center; justify-items: start; padding-inline: max(16px, 6vw); padding-block: 24px; background: linear-gradient(90deg, rgba(4, 7, 18, .92) 0%, rgba(4, 7, 18, .72) 38%, rgba(4, 7, 18, 0) 70%); z-index: 20; overflow: auto; }
+#start .glyphs { font: 28px var(--font-glyph); color: var(--glyph); letter-spacing: .3em; text-shadow: 0 0 18px rgba(130,217,255,.65); }
+#start h1 { margin: 4px 0 0; font: 900 clamp(44px, 7.2vw, 96px)/0.95 var(--font-display); letter-spacing: .08em; background: linear-gradient(180deg, #fff1c8 0%, var(--gold) 45%, #8a5f1c 100%); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 4px 14px rgba(0,0,0,.6)); text-wrap: balance; }
+#start .sub { font: 700 clamp(14px, 1.6vw, 19px) var(--font-display); letter-spacing: .36em; color: var(--parchment); text-transform: uppercase; margin-top: 6px; }
+#start .tag { margin-top: 10px; max-width: 50ch; font-size: 16px; line-height: 1.45; color: var(--muted); }
+#start .tag em { color: var(--parchment); font-style: normal; }
+#play { margin-top: 18px; pointer-events: auto; cursor: pointer; font: 800 18px var(--font-display); letter-spacing: .22em; text-transform: uppercase; color: #05101e; background: linear-gradient(180deg, #ffe7a6, var(--gold) 55%, #b88a35); border: 0; padding: 15px 34px; box-shadow: 0 0 0 1px #000, 0 0 30px rgba(230, 184, 90, .45); }
+#play:hover { filter: brightness(1.08); }
+#play[disabled] { filter: grayscale(.6) brightness(.7); cursor: progress; }
+#loadbar { margin-top: 18px; width: min(360px, 80vw); height: 4px; background: rgba(255,255,255,.08); }
+#loadbar div { height: 100%; width: 0; background: linear-gradient(90deg, var(--glyph), var(--gold)); transition: width .2s; }
+#loadtxt { margin-top: 6px; font-size: 13px; color: var(--muted); letter-spacing: .06em; }
+#controls { margin-top: 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 22px; font-size: 13px; color: var(--muted); max-width: 520px; }
+#controls div { min-width: 0; }
+#controls kbd { display: inline-block; min-width: 22px; text-align: center; font: 700 13px var(--font-ui); color: var(--parchment); background: rgba(130, 217, 255, .09); border: 1px solid rgba(130, 217, 255, .32); padding: 1px 6px; margin-right: 6px; }
+@media (max-width: 640px) { #controls { grid-template-columns: 1fr; } }
+
+/* ---------- Pantheon (god select) ---------- */
+.godpick { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 14px; max-width: 700px; }   /* seven gods: a row of four, a row of three */
+@media (max-width: 640px) { .godpick { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.godcard { --gc: #7fe8ff; --load: 0%; position: relative; pointer-events: auto; cursor: pointer; display: grid; justify-items: center; gap: 2px; min-width: 0; padding: 10px 8px 9px; background: linear-gradient(180deg, rgba(14, 20, 44, .92), rgba(6, 9, 22, .95)); border: 1px solid rgba(255,255,255,.12); color: var(--parchment); font: 600 13px var(--font-ui); letter-spacing: .04em; overflow: hidden; transition: transform .15s, border-color .15s, box-shadow .15s; }
+.godcard::after { content: ''; position: absolute; left: 0; bottom: 0; height: 2px; width: var(--load); background: var(--gc); transition: width .2s; }
+.godcard .gg { font: 26px var(--font-glyph), serif; line-height: 1.1; color: var(--gc); text-shadow: 0 0 14px var(--gc); }
+.godcard b { font: 800 15px var(--font-display); letter-spacing: .1em; color: #fff; }
+.godcard small { color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.godcard:hover { transform: translateY(-2px); border-color: var(--gc); }
+.godcard.locked { cursor: not-allowed; filter: grayscale(0.85) brightness(0.55); background: linear-gradient(180deg, rgba(14, 6, 4, .95), rgba(4, 2, 2, .98)); border-color: rgba(255,255,255,.06); }
+.godcard.locked:hover { transform: none; border-color: rgba(255,255,255,.06); }
+.godcard.locked small { color: #b08060; font-style: italic; text-transform: none; letter-spacing: .02em; }
+.godcard.on { border-color: var(--gc); box-shadow: 0 0 0 1px var(--gc), 0 0 22px color-mix(in srgb, var(--gc) 45%, transparent); background: linear-gradient(180deg, color-mix(in srgb, var(--gc) 22%, #0a1024), rgba(6, 9, 22, .95)); }
+#menu .godpick { max-width: none; margin-top: 12px; }
+#bottom .ab.final { box-shadow: 0 0 0 1px var(--god, var(--gold)), 0 0 14px color-mix(in srgb, var(--god, #e6b85a) 40%, transparent); }
+
+/* ---------- Menu ---------- */
+#menu { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(3, 6, 15, .62); z-index: 25; padding-inline: 16px; overflow: auto; }
+#menu .card { width: min(720px, 100%); max-height: calc(100% - 40px); overflow: auto; background: rgba(7, 11, 26, .97); border: 1px solid var(--edge); padding: 20px 22px; box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+#menu h2 { margin: 0; font: 800 22px var(--font-display); letter-spacing: .14em; color: var(--gold); }
+#menu .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 22px; margin-top: 16px; }
+@media (max-width: 640px) { #menu .grid { grid-template-columns: 1fr; } }
+#menu label { display: grid; gap: 4px; font-size: 14px; color: var(--muted); min-width: 0; }
+#menu label span { display: flex; justify-content: space-between; }
+#menu label b { color: var(--parchment); font-variant-numeric: tabular-nums; }
+#menu input[type=range] { width: 100%; accent-color: var(--gold); }
+#menu select { background: var(--panel-solid); color: var(--parchment); border: 1px solid var(--edge-soft); padding: 4px 6px; font: 600 14px var(--font-ui); }
+#menu .checks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 22px; margin-top: 14px; }
+#menu .checks label { display: flex; align-items: center; gap: 8px; color: var(--parchment); }
+#menu .checks input { accent-color: var(--gold); width: 16px; height: 16px; }
+#menu .ranks { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+@media (max-width: 560px) { #menu .ranks { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+#menu .row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; flex-wrap: wrap; }
+#menu .row button { pointer-events: auto; cursor: pointer; font: 700 14px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; padding: 9px 16px; border: 1px solid var(--edge); background: var(--panel-solid); color: var(--parchment); }
+#menu .row button.primary { background: linear-gradient(180deg, #ffe7a6, var(--gold) 55%, #b88a35); color: #05101e; border-color: #000; }
+#menu .note { margin-top: 12px; font-size: 13px; color: var(--muted); }
+#menu .row button.danger { border-color: #8a2a24; color: #ffb3a6; }
+#menu .row button:hover { filter: brightness(1.15); }
+#menu .row .spacer { flex: 1 1 auto; }
+/* ---------- Quit screen ---------- */
+#quit { position: absolute; inset: 0; z-index: 40; display: grid; place-content: center; justify-items: center; gap: 12px; padding: 16px; text-align: center; background: radial-gradient(ellipse at center, #0b1022 0%, #03050c 70%); }
+#quit .glyphs { font: 26px var(--font-glyph); color: var(--gold); letter-spacing: .35em; opacity: .8; }
+#quit h2 { margin: 0; font: 900 clamp(30px, 5vw, 56px)/1 var(--font-display); letter-spacing: .08em; background: linear-gradient(180deg, #fff1c8 0%, var(--gold) 45%, #8a5f1c 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+#quit p { margin: 0; max-width: 46ch; color: var(--muted); font-size: 15px; line-height: 1.45; }
+#quit button { margin-top: 10px; pointer-events: auto; cursor: pointer; font: 800 16px var(--font-display); letter-spacing: .2em; text-transform: uppercase; color: #05101e; background: linear-gradient(180deg, #ffe7a6, var(--gold) 55%, #b88a35); border: 0; padding: 13px 28px; box-shadow: 0 0 0 1px #000, 0 0 26px rgba(230, 184, 90, .4); }
+
+@media (prefers-reduced-motion: reduce) { #toast, #loadbar div { transition: none; } }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "./vendor/three/build/three.module.js",
+  "three/addons/": "./vendor/three/examples/jsm/"
+} }
+</script>
+
+<div id="app">
+  <canvas id="gl"></canvas>
+  <canvas id="fx2d"></canvas>
+
+  <div id="hud" hidden>
+    <div id="topleft">
+      <div class="chip">Jungle Practice · <b>Hall of Ma'at</b></div>
+      <div id="keys">
+        <div><kbd>WASD</kbd>move · <kbd>Mouse</kbd>aim</div>
+        <div><kbd>LMB</kbd>basic attack · <kbd>RMB</kbd>cancel</div>
+        <div><kbd>Q</kbd><kbd>E</kbd><kbd>R</kbd><kbd>F</kbd><kbd>G</kbd>abilities (or 1–5)</div>
+        <div><kbd>B</kbd>recall · <kbd>Space</kbd>jump · <kbd>←</kbd><kbd>→</kbd>rotate camera</div>
+        <div><kbd>T</kbd>taunt · <kbd>V</kbd>switch god · <kbd>C</kbd>inspect · <kbd>M</kbd>sound · <kbd>H</kbd>hide help</div>
+        <div><kbd>Esc</kbd>menu and settings</div>
+      </div>
+    </div>
+
+    <div id="buffs"></div>
+
+    <div id="channel" hidden>
+      <div class="t">Final Judgement</div>
+      <div class="pages"><i></i><i></i><i></i><i></i></div>
+      <div class="h"><b>F</b> or <b>LMB</b> fires · <b>RMB</b> cancels (costs 30 mana)</div>
+    </div>
+
+    <div id="toast"></div>
+    <div id="warn">Not enough mana</div>
+
+    <div id="bottom">
+      <div id="portrait"><canvas id="portraitCv" width="184" height="184"></canvas><div id="lvl">20</div></div>
+      <div id="core">
+        <div id="abilities"></div>
+        <div class="bar hp"><div class="fill"></div><span class="txt"></span></div>
+        <div class="bar mp"><div class="fill"></div><span class="txt"></span></div>
+      </div>
+    </div>
+
+    <div id="reckon">
+      <div class="title">Dead Reckoning</div>
+      <div class="stacks"></div>
+      <div class="names"><div></div></div>
+      <div id="reckonTxt">0 / 20 names</div>
+    </div>
+    <div id="meter">
+      <div class="title">Damage meter</div>
+      <div class="row">Total <b id="mTotal">0</b></div>
+      <div class="row">DPS (5 s) <b id="mDps">0</b></div>
+      <div class="row">Last hit <b id="mLast">–</b></div>
+    </div>
+
+    <div id="lockhint" hidden>Click to take control of the camera<small>The mouse controls the camera · Esc gives you the cursor back</small></div>
+  </div>
+
+  <div id="tooltip" hidden></div>
+
+  <div id="start">
+    <div class="glyphs" id="godGlyphs">𓁟 𓅝 𓂀 𓋹 𓆣</div>
+    <h1 id="godName">THOTH</h1>
+    <div class="sub" id="godSub">Arbiter of the Damned</div>
+    <p class="tag" id="godTag">The scribe of secrets, book in hand. A small training temple under the full moon, with ushabti statues, wandering mummies and an Anubis guardian.</p>
+    <div class="godpick" aria-label="Choose god"></div>
+    <button id="play" disabled>Loading …</button>
+    <div id="loadbar"><div></div></div>
+    <div id="loadtxt">Preparing papyrus</div>
+    <div id="controls">
+      <div><kbd>W A S D</kbd>Move</div>
+      <div><kbd>Mouse</kbd>Camera and aim</div>
+      <div><kbd>LMB</kbd>Basic attack / cast ability</div>
+      <div><kbd>RMB</kbd>Cancel aiming</div>
+      <div id="godKeys" style="display:contents"></div>
+      <div><kbd>1</kbd>–<kbd>5</kbd>Also abilities</div>
+      <div><kbd>B</kbd>Recall (back to the fountain)</div>
+      <div><kbd>Space</kbd>Jump</div>
+      <div><kbd>V</kbd>Switch god at any time</div>
+      <div><kbd>T</kbd>Taunt</div>
+      <div><kbd>C</kbd>Inspect the model</div>
+      <div><kbd>Esc</kbd>Menu and settings</div>
+    </div>
+  </div>
+
+  <div id="menu" hidden>
+    <div class="card" role="dialog" aria-labelledby="menuTitle">
+      <h2 id="menuTitle">Jungle Practice</h2>
+      <div class="godpick" aria-label="Choose god"></div>
+      <div class="grid">
+        <label for="sLevel"><span>Level <b id="vLevel">20</b></span><input id="sLevel" type="range" min="1" max="20" step="1" value="20"></label>
+        <label for="sPower"><span><i id="powerLabel" style="font-style:normal">Magical Power</i> <b id="vPower">600</b></span><input id="sPower" type="range" min="0" max="1000" step="10" value="600"></label>
+        <label for="sCdr"><span>Cooldown Reduction <b id="vCdr">20%</b></span><input id="sCdr" type="range" min="0" max="40" step="5" value="20"></label>
+        <label for="sSens"><span>Mouse sensitivity <b id="vSens">1.0</b></span><input id="sSens" type="range" min="0.3" max="2.5" step="0.1" value="1.0"></label>
+        <label for="sQuality"><span>Graphics</span>
+          <select id="sQuality"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High (with AO)</option></select>
+        </label>
+        <label for="sVolume"><span>Sound volume <b id="vVolume">70%</b></span><input id="sVolume" type="range" min="0" max="100" step="5" value="70"></label>
+        <label for="sMusic"><span>Music <b id="vMusic">45%</b></span><input id="sMusic" type="range" min="0" max="100" step="5" value="45"></label>
+      </div>
+      <div class="ranks">
+        <label for="r1"><span>Rank 1</span><select id="r1"></select></label>
+        <label for="r2"><span>Rank 2</span><select id="r2"></select></label>
+        <label for="r3"><span>Rank 3</span><select id="r3"></select></label>
+        <label for="r4"><span>Rank 4</span><select id="r4"></select></label>
+        <label for="r5"><span>Rank 5</span><select id="r5"></select></label>
+      </div>
+      <div class="checks">
+        <label for="cNoCd"><input id="cNoCd" type="checkbox">No cooldowns</label>
+        <label for="cInfMana"><input id="cInfMana" type="checkbox">Infinite mana</label>
+        <label for="cQuick"><input id="cQuick" type="checkbox">Quick cast (cast instantly)</label>
+        <label for="cMove"><input id="cMove" type="checkbox" checked>Mummies and the guardian walk</label>
+      </div>
+      <p class="note">The kits are taken from SMITE 1 (Hecate is from SMITE 2 – she never made it to SMITE 1). Ability 5 is a unique finale for each god. The targets have magical and physical protection. Abilities are on <b>Q E R F G</b> (or 1–5), <b>B</b> is recall, and <b>V</b> switches god.</p>
+      <div class="row">
+        <button id="bQuit" class="danger" type="button">Quit game</button>
+        <button id="bRestart" type="button">Restart</button>
+        <span class="spacer"></span>
+        <button id="bReset" type="button">Reset targets</button>
+        <button id="bResume" class="primary" type="button">Resume</button>
+      </div>
+    </div>
+  </div>
+  <div id="quit" hidden>
+    <div class="glyphs">𓁟 ᛉ 𓃠 ☽ 𓇳 ⚱</div>
+    <h2>The game has ended</h2>
+    <p>All graphics and sound have stopped. You can close the tab or start the game again.</p>
+    <button id="bAgain" type="button">Start the game again</button>
+  </div>
+</div>
