@@ -143,10 +143,12 @@ function makeJavelin(scale = 1) {
 function skadiBasic() {
   if (SK.th) return;
   P.atkCd = 1 / attackSpeed();
-  Game.anim.play('throw', { dur: Math.min(0.42, P.atkCd * 0.9) });
+  // a three-beat chain of javelin casts from her spear hand: an overhand hurl, a quick flick off the shoulder, then a heavy
+  // hurl with the whole body behind it; the conjured javelin leaves her hand at the release
+  const A = Game.anim, step = autoStep(A), rel = autoCast(A, step === 1 ? 'flick' : 'hurl', 'R', P.atkCd, { k: step === 2 ? 1.25 : 1 });
   P.atkPenalty = Math.min(0.45, P.atkCd * 0.8);
-  VFX.later(0.11, () => {
-    const origin = aimOrigin(), dir = fwdOf(P.yaw);
+  VFX.later(rel, () => {
+    const origin = autoOrigin(A, 'R'), dir = fwdOf(P.yaw);
     const g = makeJavelin(1);
     const trail = VFX.trail(0.22, GCOL.ice, 2.4, 14);
     Combat.projectiles.push(new Projectile({

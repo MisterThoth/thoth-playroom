@@ -1,34 +1,62 @@
 // ============================================================================
 // COOKIE MONSTER (owner-only, see GodLock in 11z_gods.js) - an original horror brute: a hulking, armoured
 // giant whose head is a cracked chocolate-chip cookie with molten eyes. Physical, melee basic attacks.
-//  Passive  Cookie Lover    - every 10 s he eats a cookie (upper-body gesture, never stops him): +5 % HP and mana
-//  Q        Cookie Cannon   - a huge spinning cookie hurled in a line: pierces, slows, chip shrapnel
-//  E        Crumble Form    - toggle (free, no cooldown): he becomes a rolling cookie wheel (+70 % speed, momentum)
-//  R        Dough Mine      - a cookie-dough bomb at the aimed point (max 5, arms in 0.6 s, lives 60 s): caramel blast + root
-//  F        Cookie Rage     - 10 s as a 3.8 m living cookie with two burning cookie swords: fast dual-sword combos
-//  G        Cookie Horror   - pick ONE enemy god anywhere: cookie snow and horror music around the victim (their POV),
-//                             a glitch, a SCREAMER, total silence ... then he teleports in front of them and CLAPS (BOOM)
+// v4 - ONE mechanic runs through the kit, CRUMBS: his hits cover enemies in cookie crumbs (up to 3; they cling to the
+// body, three cookie pips float over the head). A crumbed enemy is FOOD: at 3 Crumbs his Chomp DEVOURS it.
+//  Passive  Cookie Lover      - every 10 s he eats a cookie (+5 % HP and mana); a Devour is a meal too
+//  Q        Chomp             - a lunge: giant cookie JAWS slam shut in front of him (+1 Crumb). On a 3-Crumb enemy:
+//                               DEVOUR - a brutal triple bite that eats the Crumbs (big bonus damage, he heals)
+//  E        Crumble Form      - toggle: a rolling cookie wheel (+70 % speed) that rams through enemies (crunch, shove,
+//                               +1 Crumb). Rolled through his Molten Chocolate it comes out coated: burning, more damage,
+//                               a burning chocolate trail
+//  R        Molten Chocolate  - a huge cookie hurled onto the ground bursts into a pool of molten chocolate: enemies are
+//                               stuck (slow), burn and gain a Crumb every 1.2 s
+//  F        Cookie Rage       - 10 s as a 4.75 m living cookie with two burning swords. Q/E/R become the rage abilities:
+//             Q Burning Cross - blades crossed and torn apart: two crossing crescents of fire fly forward
+//             E Molten Charge - a charge dragging both swords through the floor (a burning trench), a rising slash knocks up
+//             R Skyfall       - a leap into the sky, both swords crash down: a crater of molten cookie and a shockwave
+//  G        Cookie Horror     - pick ONE enemy god anywhere: scary music, REAL cookies rain on it, a voice whispers its name,
+//                               a glitch, a SCREAMER that screams its name, silence ... he is in front of it and CLAPS
 // ============================================================================
 const COOKIE_STATS = { hp: [560, 95], mp: [210, 34], speed: 355, range: 14, as: [0.86, 0.012], basic: [46, 2.6], basicScale: 1.0, hp5: [11, 0.9], mp5: [4.5, 0.4] };
 const CM_EAT = { every: 10, heal: 0.05, mana: 0.05, bite: 0.95 };
-const CM_ROLL = { speed: 0.7, radius: 0.95, accel: 2.4 };
+const CM_ROLL = { speed: 0.7, radius: 0.95, accel: 2.4, icd: 1.1, minSpeed: 2.6, coat: 4.0, trailLife: 2.2, coatK: 1.5 };
 const CM_RAGE = { dur: 10, ms: 0.3, as: 0.6, slamR: 5.5, windup: 0.5, slow: [1.75, 0.3], roarEvery: 4.2, slamR3: 4.6 };   // (the windup runs in slow motion: 0.5 s of game time = ~1.7 s real)
-const CM_MINE = { max: 5, arm: 0.6, life: 60, trigger: 1.6, radius: 4.4, root: 1.4, lift: 0.55, flight: 0.5, size: 1.6 };
-// Cookie Horror timeline (s after the target is chosen): snow + horror music, glitch, SCREAMER, silence, teleport + CLAP
-const CM_HORROR = { glitch: 2.5, scream: 3.1, silence: 5.1, tele: 5.7, boom: 6.05, end: 7.2, splashR: 6, splash: 0.15,
+const CM_CRUMB = { max: 3, dur: 6 };
+// Chomp: game seconds after the cast (the 'chomp' clip: the hands slam together forward = the jaws' bite)
+const CM_CHOMP = { lunge: 3.0, lungeAt: 0.12, lungeEnd: 0.42, snap: 0.47, reach: 5.4, arc: 0.85, jaw: 3.0, bites: 3, biteGap: 0.2, maxDevour: 2, skew: 0.8 };   // (skew: the mouth turned 3/4 to the camera, so its fangs show in profile)
+const CM_MOLTEN = { release: 0.32, flight: 0.55, radius: 4.6, dur: 4.5, slow: 0.35, tick: 0.5, crumbEvery: 1.2, impactR: 3.6 };
+const CM_CROSS = { speed: 30, range: 26, half: 2.3, r0: 1.9, r1: 3.3, arc: 0.95, roll: 0.78, y: 2.0 };
+const CM_CHARGE = { dist: 12, dur: 0.5, width: 2.0, upR: 4.6, trench: 2.6 };
+const CM_SKY = { up: 0.42, land: 1.16, h: 7.0, radius: 6.0, lift: 0.6, crater: 3.2 };
+// Cookie Horror timeline (s after the target is chosen): music, the cookie rain, the voice ("<name> ... Cookie Monster is
+// coming for you"), a glitch, the SCREAMER (it screams the name), silence, he is THERE, the CLAP
+const CM_HORROR = { rain: 0.45, coming: 1.4, glitch: 4.3, scream: 4.9, silence: 6.6, tele: 7.1, boom: 7.72, end: 8.95, splashR: 6, splash: 0.15,
   slow: { lead: 0.16, in: 0.35, hold: 1.2, out: 0.45, scale: 0.17 } };   // the clap's slow motion (real seconds; the hands close in it)
-const CM = { form: 'normal', eatT: 6, eat: null, combo: 0, comboT: 0, roll: null, rage: null, rageR: null, home: null, mines: [], horror: null, pick: null,
-  cookieBack: 0, aura: null, auras: [], screamImg: null, kills: 0, lifts: [] };   // (one per player online: 14n_net.js swaps it per god, NET_KITSTATE)
-const CMC = { caramel: new THREE.Color(1.0, 0.45, 0.06), choc: new THREE.Color(0.3, 0.1, 0.02), fire: new THREE.Color(1.0, 0.3, 0.04), blood: new THREE.Color(0.7, 0.04, 0.04), crumb: new THREE.Color(0.75, 0.45, 0.16) };
+// the ability bar: on foot / rolling, and in Cookie Rage (the swords' own Q E R)
+const CM_ORDER = { normal: ['cp', 'cf', 'mo', 'cr', 'hr'], rage: ['bx', 'mh', 'sk', 'cr', 'hr'] };
+const CM_RAGE_IDS = ['bx', 'mh', 'sk'];
+const CM = { form: 'normal', eatT: 6, eat: null, combo: 0, comboT: 0, roll: null, rage: null, rageR: null, home: null, horror: null, pick: null,
+  cookieBack: 0, aura: null, auras: [], screamImg: null, kills: 0, lifts: [],
+  crumbs: new Map(), chomp: null, throws: [], pools: [], trail: [], trailT: 0, waves: [], trench: [], trenchT: 0, act: null };   // (one per player online: 14n_net.js swaps it per god, NET_KITSTATE)
+const CMC = { caramel: new THREE.Color(1.0, 0.45, 0.06), choc: new THREE.Color(0.3, 0.1, 0.02), fire: new THREE.Color(1.0, 0.3, 0.04), blood: new THREE.Color(0.7, 0.04, 0.04), crumb: new THREE.Color(0.75, 0.45, 0.16), coat: new THREE.Color(0.2, 0.08, 0.03) };
 const _c1 = new THREE.Vector3(), _c2 = new THREE.Vector3(), _c3 = new THREE.Vector3(), _c4 = new THREE.Vector3(), _c5 = new THREE.Vector3(), _cUp = new THREE.Vector3(0, 1, 0);
+const _cM = new THREE.Matrix4(), _cQ = new THREE.Quaternion(), _cQ2 = new THREE.Quaternion(), _cS = new THREE.Vector3(), _cE = new THREE.Euler();
 const cookieAB = {
-  cc: { id: 'cc', name: 'Cookie Cannon', dmg: [90, 140, 190, 240, 290], scale: 0.8, cost: [60, 65, 70, 75, 80], cd: [10, 10, 10, 10, 10], range: 70, width: 0.9, slow: 0.25, slowDur: 1.5, targeted: true },
-  cf: { id: 'cf', name: 'Crumble Form', cost: [0, 0, 0, 0, 0], cd: [0, 0, 0, 0, 0] },
-  dm: { id: 'dm', name: 'Dough Mine', dmg: [100, 150, 200, 250, 300], scale: 0.7, cost: [40, 40, 40, 40, 40], cd: [7, 6.5, 6, 5.5, 5], range: 55, targeted: true },
+  cp: { id: 'cp', name: 'Chomp', dmg: [80, 125, 170, 215, 260], scale: 0.75, devour: [60, 90, 120, 150, 180], devourScale: 0.4, cost: [55, 60, 65, 70, 75], cd: [9, 8.5, 8, 7.5, 7], range: 27 },
+  cf: { id: 'cf', name: 'Crumble Form', roll: [30, 45, 60, 75, 90], rollScale: 0.25, cost: [0, 0, 0, 0, 0], cd: [0, 0, 0, 0, 0] },
+  mo: { id: 'mo', name: 'Molten Chocolate', dmg: [70, 110, 150, 190, 230], scale: 0.5, burn: [20, 28, 36, 44, 52], burnScale: 0.1, cost: [60, 65, 70, 75, 80], cd: [14, 13, 12, 11, 10], range: 55, targeted: true },
   cr: { id: 'cr', name: 'Cookie Rage', slam: [200, 280, 360, 440, 520], slamScale: 1.0, sword: [40, 52, 64, 76, 88], swordScale: 0.2, cost: [90, 90, 90, 90, 90], cd: [90, 85, 80, 75, 70] },
-  ch: { id: 'ch', name: 'Cookie Horror', dmg: [5000, 5600, 6200, 6800, 7400], scale: 10.0, cost: [100, 100, 100, 100, 100], cd: [110, 105, 100, 95, 90] },
+  // (balance, ability 5 >= 2 x ability 4: Cookie Rage's whole 10 s - transform, swords AND its three rage abilities - stays
+  //  under half of this, see COOKIE_INFO.hr; was 5000-7400 + 1000 % before the rage abilities came)
+  hr: { id: 'hr', name: 'Cookie Horror', dmg: [5800, 6500, 7200, 7900, 8600], scale: 10.0, cost: [100, 100, 100, 100, 100], cd: [110, 105, 100, 95, 90] },
+  bx: { id: 'bx', name: 'Burning Cross', dmg: [70, 90, 110, 130, 150], scale: 0.3, cost: [0, 0, 0, 0, 0], cd: [3.5, 3.5, 3.5, 3.5, 3.5], range: 130 },
+  mh: { id: 'mh', name: 'Molten Charge', dmg: [90, 110, 130, 150, 170], scale: 0.4, up: [60, 80, 100, 120, 140], upScale: 0.3, burn: [20, 25, 30, 35, 40], burnScale: 0.08, cost: [0, 0, 0, 0, 0], cd: [6, 6, 6, 6, 6], range: 60 },
+  sk: { id: 'sk', name: 'Skyfall', dmg: [160, 200, 240, 280, 320], scale: 0.6, burn: [25, 30, 35, 40, 45], burnScale: 0.08, cost: [0, 0, 0, 0, 0], cd: [7, 7, 7, 7, 7], range: 75, targeted: true },
 };
-const cmDmg = (id, k = 'dmg', sk = 'scale') => AB[id][k][rankOf(id) - 1] + AB[id][sk] * ppow();
+// (a rank by the slot the ability sits in - the rage's Q E R share Q E R's ranks, on the bar or not)
+const cmRank = (id) => { let i = ABILITY_ORDER.indexOf(id); if (i < 0) i = CM_ORDER.rage.indexOf(id); if (i < 0) i = CM_ORDER.normal.indexOf(id); return clamp(settings.ranks[i] || 1, 1, 5); };
+const cmDmg = (id, k = 'dmg', sk = 'scale') => AB[id][k][cmRank(id) - 1] + AB[id][sk] * ppow();
 
 // ---- palettes: caramel (his magic), chocolate (smoke, shrapnel), cookie fire, and the horror red ----
 FX2.defPal('cookie', { edge: [0.3, 0.08, 0.0], mid: [0.95, 0.42, 0.04], core: [1.0, 0.72, 0.3], smoke: [0.22, 0.11, 0.04], light: [1.0, 0.45, 0.1], spark: [1.0, 0.62, 0.2] });
@@ -56,6 +84,88 @@ function cmMouth(out = new THREE.Vector3()) { return out.setFromMatrixPosition(G
 // his loops (the rolling wheel, the burning swords) on another player's screen: as loud as he is near (14n_net.js)
 function cmNear() { if (!Net.ctx) return 1; const d = camera.position.distanceTo(P.pos); return d > 60 ? 0 : clamp(1.25 / (1 + d / 14), 0, 1); }
 function cmDrop(g) { if (!g || g.userData.dropped) return; g.userData.dropped = true; if (g.parent) g.parent.remove(g); }
+FX2.defPal('steam', { edge: [0.3, 0.27, 0.25], mid: [0.55, 0.5, 0.46], core: [0.8, 0.76, 0.72], smoke: [0.6, 0.56, 0.52], light: [0.5, 0.4, 0.3] });
+// a thrown-away clone of the cookie model: off the scene, its own little glow sprites freed (the glTF's own geometry and
+// materials are shared and stay)
+function cmDropCookie(g) { if (!g) return; g.traverse((o) => { if (o.isSprite && o.material && o.material.map === glowSpriteTexture()) o.material.dispose(); }); cmDrop(g); }
+
+// ---- the mechanic: CRUMBS ---------------------------------------------------------------------------------------
+// CM.crumbs: target -> { n (0-3), t (s left), g (the crumbs stuck on its body + the cookie pips over its head) }. Every
+// hit of his kit adds one; they fall off after CM_CRUMB.dur s without a new one. At 3 the enemy is food: Chomp devours it.
+const _cmCrumbGeo = new THREE.DodecahedronGeometry(1, 0);
+let _cmCrumbMat = null; const _cmPipTex = [];
+function cmCrumbMat() { return _cmCrumbMat || (_cmCrumbMat = new THREE.MeshStandardMaterial({ map: cookieCrustTexture(), color: 0xe0aa66, roughness: 0.85, emissive: new THREE.Color(0.12, 0.05, 0.0), emissiveIntensity: 1 })); }
+function cmPipTex(n) {
+  if (_cmPipTex[n]) return _cmPipTex[n];
+  const c = document.createElement('canvas'); c.width = 192; c.height = 64; const g = c.getContext('2d');
+  for (let i = 0; i < 3; i++) {
+    const x = 32 + i * 64, y = 32, on = i < n;
+    g.globalAlpha = on ? 1 : 0.3;
+    if (on && n >= 3) { g.shadowColor = '#ff5a10'; g.shadowBlur = 12; }
+    g.fillStyle = on ? (n >= 3 ? '#ffa04a' : '#d8964a') : '#4a2a14';
+    g.beginPath(); for (let k = 0; k <= 22; k++) { const a = (k / 22) * TAU, r = 24 * (0.9 + 0.1 * Math.sin(k * 3.3 + i * 2)); g.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r); } g.closePath(); g.fill();
+    g.shadowBlur = 0; g.lineWidth = 3; g.strokeStyle = '#1a0802'; g.stroke();
+    g.fillStyle = '#2a1206'; for (const [cx, cy, cr] of [[-8, -7, 5], [7, -5, 4], [1, 8, 5], [-10, 7, 3], [11, 8, 3]]) { g.beginPath(); g.arc(x + cx, y + cy, cr, 0, TAU); g.fill(); }
+    if (!on || i === 2) { g.globalAlpha = on ? 1 : 0.3; g.fillStyle = '#000'; g.beginPath(); g.arc(x + 22, y - 16, 10, 0, TAU); g.fill(); }   // (a bite out of it)
+  }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return (_cmPipTex[n] = t);
+}
+function cmCrumb(d, k = 1) {
+  if (!d || !d.alive) return 0;
+  let c = CM.crumbs.get(d);
+  if (!c) {
+    const g = new THREE.Group(), chunks = [];
+    for (let i = 0; i < 12; i++) {
+      const m = new THREE.Mesh(_cmCrumbGeo, cmCrumbMat());
+      m.userData = { a: (i * 2.399) % TAU, h: 0.22 + ((i * 0.618) % 1) * 0.62, s: rand(0.045, 0.085), o: rand(0.9, 1.08) };
+      m.rotation.set(rand(0, 3), rand(0, 3), rand(0, 3)); m.visible = false; g.add(m); chunks.push(m);
+    }
+    const pips = new THREE.Sprite(new THREE.SpriteMaterial({ map: cmPipTex(1), transparent: true, depthWrite: false, depthTest: false })); pips.renderOrder = 14; g.add(pips);
+    scene.add(g);
+    c = { n: 0, t: 0, g, chunks, pips, pop: 0 }; CM.crumbs.set(d, c);
+  }
+  const was = c.n; c.n = Math.min(CM_CRUMB.max, c.n + k); c.t = CM_CRUMB.dur;
+  if (c.n !== was) { c.pips.material.map = cmPipTex(c.n); c.pips.material.needsUpdate = true; c.pop = 1; }
+  // a puff of cookie bits sticks to it; the third one rings like a dinner bell (it is food now)
+  const hp = _c5.set(d.pos.x, (d.height || 2) * 0.6 + (d.lift || 0), d.pos.z).clone();
+  cmCrumbs(hp, 6 + 4 * c.n, 0.6, 0.6);
+  if (c.n >= CM_CRUMB.max && was < CM_CRUMB.max) {
+    Sound.god('crunch', { gain: 0.45, rate: 1.4, pos: d.pos });
+    FX2.glow.spawn({ pos: hp.setY((d.height || 2) + 0.75), life: 0.45, size: 0.5, sizeEnd: 1.5, cell: FXA.flare, pal: 'cookie', temp: 0.9, tempEnd: 0.4, int: 1.0, fadeIn: 0 });
+  }
+  return c.n;
+}
+const cmCrumbsOf = (d) => { const c = CM.crumbs.get(d); return c ? c.n : 0; };
+function cmCrumbDrop(d) { const c = CM.crumbs.get(d); if (!c) return; CM.crumbs.delete(d); cmDrop(c.g); c.pips.material.dispose(); }
+function cmUpdateCrumbs(dt, t) {
+  for (const [d, c] of CM.crumbs) {
+    c.t -= dt; c.pop = Math.max(0, c.pop - dt * 4);
+    if (c.t <= 0 || !d.alive || d.gone) { if (d.alive && c.n) cmCrumbs(_c2.set(d.pos.x, 1, d.pos.z), 6, 0.4, 0.3); cmCrumbDrop(d); continue; }
+    const H = d.height || 2, R = (d.radius || 0.5) * 0.92, ly = d.lift || 0;
+    c.g.position.set(d.pos.x, ly, d.pos.z); c.g.visible = !(d.mesh && d.mesh.visible === false);
+    const show = c.n * 4;
+    for (let i = 0; i < c.chunks.length; i++) {
+      const m = c.chunks[i], u = m.userData; m.visible = i < show; if (!m.visible) continue;
+      m.position.set(Math.cos(u.a) * R * u.o, u.h * H, Math.sin(u.a) * R * u.o); m.scale.setScalar(u.s * (1 + 0.6 * c.pop) * (H / 2));
+    }
+    const pul = (c.n >= 3 ? 1 + 0.08 * Math.sin(t * 9) : 1) * (1 + 0.35 * c.pop);
+    c.pips.position.set(0, H + 0.8, 0); c.pips.scale.set(0.95 * pul, 0.32 * pul, 1);
+    c.pips.material.opacity = Math.min(1, c.t / 0.6);
+    if (Math.random() < dt * (0.8 + c.n)) cmCrumbs(_c2.set(d.pos.x + rand(-R, R), H * rand(0.3, 0.8) + ly, d.pos.z + rand(-R, R)), 1, 0.3, 0.2);   // crumbs trickle off it
+    if (c.n >= 3 && Math.random() < dt * 5) FX2.glow.spawn({ pos: _c2.set(d.pos.x + rand(-0.3, 0.3), H + 0.8 + ly, d.pos.z + rand(-0.3, 0.3)), vel: V3(rand(-0.3, 0.3), rand(0.4, 1.0), rand(-0.3, 0.3)), life: rand(0.4, 0.7), size: 0.05, sizeEnd: 0.01, cell: FXA.ember, pal: 'cookie', temp: 1.1, tempEnd: 0.5, int: 1.6 });
+  }
+}
+// a Devour is a meal: the passive's heal and mana, and the next cookie waits its full 10 s
+function cmFeast(n = 1) {
+  const hp = maxHp() * CM_EAT.heal * n, mp = maxMp() * CM_EAT.mana * n;
+  P.hp = Math.min(maxHp(), P.hp + hp); P.mp = Math.min(maxMp(), P.mp + mp);
+  if (!Net.ctx) cmText(P.pos.clone().setY(P.y + 3.3), `+${Math.round(hp)}`, '#8dff9a', true);
+  CM.eatT = CM_EAT.every;
+  Sound.god('eat', { gain: 0.9, delay: 0.12 });
+  Sound.voice('passive_eat', { chance: 0.7, cooldown: 5, delay: 0.35, priority: 3 });
+  FX2.glow.spawn({ pos: P.pos.clone().setY(1.6), life: 0.6, size: 1.0, sizeEnd: 2.2, cell: FXA.glow, pal: 'cookie', temp: 0.8, tempEnd: 0.4, int: 0.8, fadeIn: 0.05 });
+}
 
 // ---- the passive: Cookie Lover -------------------------------------------------------------------------
 function cmStartEat() {
@@ -86,7 +196,7 @@ function cmUpdateEat(dt) {
 }
 
 // ---- basic attack: two heavy punches and a two-fisted smash -------------------------------------------
-function cmBusy() { return !!((CM.horror && !CM.horror.done) || CM.pick || (CM.rage && CM.rage.phase === 'in')); }
+function cmBusy() { return !!((CM.horror && !CM.horror.done) || CM.pick || (CM.rage && CM.rage.phase === 'in') || CM.act || CM.chomp); }
 function cookieBasic() {
   if (cmBusy() || CM.form === 'roll') return;
   if (CM.form === 'rage') { cmRageSwing(); return; }
@@ -108,6 +218,7 @@ function cookieBasic() {
     }
     for (const d of heavy ? near : near.slice(0, 1)) {
       Combat.deal(d, basicDamage() * (heavy ? 1.35 : 1), 'basic', 'Fist');
+      if (heavy) cmCrumb(d);   // (the two-fisted smash covers it in crumbs)
       const hp = d.pos.clone().setY(1.1);
       cmBurst(hp, heavy ? 0.5 : 0.35, { distort: heavy, light: heavy });
       Sound.god('cookie_hit', { gain: 0.8, pos: d.pos, rate: rand(0.95, 1.08) });
@@ -115,61 +226,158 @@ function cookieBasic() {
   });
 }
 
-// ---- Q · Cookie Cannon: a huge spinning cookie hurled in a line; it pierces everything --------------------
-function castCookieCannon() {
-  spend('cc'); startCd('cc');
-  Game.anim.play('hurl');
-  Sound.voice('q', { chance: 0.6, cooldown: 6 });
-  VFX.later(0.3, () => {
-    if (Kit !== GODS.cookie) return;
-    const dmg = cmDmg('cc'), dir = fwdOf(P.yaw), speed = 30, held = CM.home && CM.home.rig.prop;
-    // it leaves from the cookie in his hand (no pop): the held one hides, the flying one grows out of it
-    const origin = held && held.visible ? held.getWorldPosition(new THREE.Vector3()) : aimOrigin().add(_c1.set(0, 0.35, 0));
-    origin.y = Math.max(origin.y, 1.2);
-    CM.cookieBack = 1.0;
-    const g = makeCookieDisc(1.3); scene.add(g); g.position.copy(origin); g.scale.setScalar(0.55);
-    const side = rightOf(P.yaw, new THREE.Vector3()), spinQ = new THREE.Quaternion(), baseQ = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(side, _cUp, dir));
-    const trail = VFX.trail(0.42, CMC.caramel, 2.0, 22), S = { ang: 0, w: 0, crumbAcc: 0 };
-    Sound.god('cookie_throw', { gain: 1.0 });
-    cmCrumbs(origin, 8, 0.7);
-    Combat.projectiles.push(new Projectile({
-      kind: 'ability', pos: origin, dir, speed, radius: AB.cc.width, pierce: true, maxDist: AB.cc.range * SU, glyphRange: 0,
-      onMove(p, dt) {
-        g.position.copy(p.pos);
-        g.scale.setScalar(lerp(0.55, 1, easeOutCubic(Math.min(1, p.t / 0.14))));
-        S.w = damp(S.w, 15, 9, dt); S.ang += S.w * dt;   // the spin winds up smoothly
-        spinQ.setFromAxisAngle(_c1.set(1, 0, 0), -S.ang); g.quaternion.copy(baseQ).multiply(spinQ);
-        trail.push(p.pos);
-        // a clean, even crumb trail (spaced by distance, not by chance) and the odd chip
-        S.crumbAcc += speed * dt;
-        while (S.crumbAcc > 0.35) { S.crumbAcc -= 0.35; FX2.solid.spawn({ pos: _c2.copy(p.pos).add(_c3.set(rand(-0.2, 0.2), rand(-0.3, 0.2), rand(-0.2, 0.2))), vel: V3(rand(-0.6, 0.6), rand(-0.2, 1.0), rand(-0.6, 0.6)), life: rand(0.7, 1.1), size: rand(0.05, 0.09), sizeEnd: 0.04, cell: FXA.rock, pal: Math.random() < 0.6 ? 'cookie' : 'choco', temp: 0, tempEnd: 0, alpha: 1, gravity: -11, floor: true, rotVel: rand(-6, 6) }); }
-        if (Math.random() < dt * 8) FX2.rocks.spawn({ pos: p.pos.clone(), vel: V3(rand(-1.5, 1.5), rand(1, 2.5), rand(-1.5, 1.5)), size: rand(0.04, 0.07), color: CMC.choc });
-        FX2.trailTick(p.pos, _c2.copy(p.dir).multiplyScalar(speed), 'cookie', dt, { k: 0.6, size: 0.8, smoke: false });
-      },
-      onHit(d, hp) {
-        Combat.deal(d, dmg, 'ability', 'Cookie Cannon');
-        d.slowed(AB.cc.slow, AB.cc.slowDur);
-        // the cookie ploughs straight through: a crumb spray thrown along its path, a gentle push, no stop
-        cmBurst(hp, 0.5, { distort: false, light: false });
-        for (let i = 0; i < 10; i++) FX2.solid.spawn({ pos: hp, vel: _c2.copy(dir).multiplyScalar(rand(3, 7)).add(_c3.set(rand(-1.5, 1.5), rand(0.5, 3), rand(-1.5, 1.5))), life: rand(0.6, 1.0), size: rand(0.06, 0.11), sizeEnd: 0.04, cell: FXA.rock, pal: 'cookie', temp: 0, tempEnd: 0, alpha: 1, gravity: -11, floor: true, rotVel: rand(-8, 8) });
-        cmChips(hp, 5, 0.6);
-        d.shove(_c2.copy(dir).multiplyScalar(0.5), 1.2);
-        Sound.god('cookie_hit', { gain: 0.95, pos: hp, rate: rand(0.95, 1.05) });
-        Cam.shake = Math.max(Cam.shake, 0.1);
-      },
-      onDie(p, at) { trail.alive = false; cmBurst(at, 0.7, { distort: false }); cmChips(at, 10, 0.9); Sound.god('crunch', { gain: 0.8, pos: at }); cmDrop(g); },
-    }));
-  });
+// ---- Q · Chomp: he lunges and giant cookie JAWS slam shut in front of him -----------------------------------------
+// The jaws: two big cookies hinged at the back like a mouth - the top one swings up and SLAMS down, the bottom one rises
+// out of the floor - with ragged rows of glossy chocolate fangs around their front edges and two burning eyes on top.
+let _cmToothGeo = null, _cmToothMat = null;
+function cmJaws(D = CM_CHOMP.jaw) {
+  if (!_cmToothGeo) {
+    _cmToothGeo = new THREE.ConeGeometry(0.17, 0.95, 6, 1).rotateX(Math.PI).translate(0, -0.475, 0);   // (base at 0, the point hanging down)
+    _cmToothMat = new THREE.MeshPhysicalMaterial({ color: 0x2c1006, roughness: 0.16, clearcoat: 1, clearcoatRoughness: 0.06, emissive: new THREE.Color(0.38, 0.09, 0.0), emissiveIntensity: 0.8 });
+  }
+  const g = new THREE.Group(), R = D / 2;
+  const jaw = (top) => {
+    const piv = new THREE.Group(), disc = makeCookieDisc(D);
+    disc.rotation.z = Math.PI / 2; disc.position.set(0, 0, R); piv.add(disc);
+    for (let i = 0; i < 15; i++) {
+      const a = lerp(-2.05, 2.05, i / 14) + rand(-0.05, 0.05), t = new THREE.Mesh(_cmToothGeo, _cmToothMat);
+      t.position.set(Math.sin(a) * R * 0.84, top ? -D * 0.045 : D * 0.045, R + Math.cos(a) * R * 0.84);
+      t.scale.set(rand(0.8, 1.25), (i % 2 ? 0.75 : 1.15) * rand(0.85, 1.2), rand(0.8, 1.2));
+      t.rotation.set(top ? 0 : Math.PI, rand(0, TAU), rand(-0.18, 0.18), 'YXZ');
+      piv.add(t);
+    }
+    return piv;
+  };
+  const top = jaw(true), bot = jaw(false); g.add(top); g.add(bot);
+  const eyes = [];
+  for (const s of [-1, 1]) {
+    const e = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowSpriteTexture(), color: new THREE.Color(1.0, 0.3, 0.03), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0 }));
+    e.scale.setScalar(0.8); e.position.set(s * 0.5, D * 0.12, R * 0.5); e.renderOrder = 9; top.add(e); eyes.push(e);
+  }
+  // the maw: a hot orange glow between the jaws while they gape
+  const maw = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowSpriteTexture(), color: new THREE.Color(0.9, 0.22, 0.02), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0 }));
+  maw.scale.set(D * 0.9, D * 0.5, 1); maw.position.set(0, 0, R); maw.renderOrder = 8; g.add(maw);
+  g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+  g.userData = { top, bot, eyes, maw };
+  g.visible = false; scene.add(g);
+  return g;
+}
+function cmJawsBreak(C) {
+  const J = C.jaws; if (!J || J.userData.gone) return;
+  J.userData.gone = true;
+  const p = J.position.clone().addScaledVector(C.jd, CM_CHOMP.jaw * 0.5).setY(1.0);
+  if (J.visible) { cmCrumbs(p, 26, 1.1, 0.8); cmChips(p, 10, 0.9); cmDust(p, 4, 0.8); }
+  for (const e of [...J.userData.eyes, J.userData.maw]) e.material.dispose();
+  cmDropCookie(J);
+}
+function castChomp() {
+  spend('cp'); startCd('cp');
+  const dir = fwdOf(P.yaw), from = P.pos.clone();
+  // the lunge stops short of the first body in front of him (he bites it, he does not run through it)
+  let L = CM_CHOMP.lunge;
+  for (const d of Combat.dummies) {
+    if (!d.alive) continue;
+    const dx = d.pos.x - from.x, dz = d.pos.z - from.z, ahead = dx * dir.x + dz * dir.z;
+    if (ahead > 0 && Math.abs(dx * dir.z - dz * dir.x) < d.radius + 1.0) L = Math.min(L, Math.max(0, ahead - d.radius - 1.5));
+  }
+  Game.anim.play('chomp');
+  Sound.voice('q', { chance: 0.6, cooldown: 5 });
+  Sound.god('punch_swing3', { gain: 0.8, rate: 0.75 });
+  Sound.god('cookie_throw', { gain: 1.15, delay: Math.max(0, CM_CHOMP.snap - 0.24) });   // (its bite lands 0.24 s in)
+  const jy = P.yaw + CM_CHOMP.skew * (Math.random() < 0.5 ? 1 : -1);
+  CM.chomp = { t: 0, dir, jy, jd: fwdOf(jy, new THREE.Vector3()), from, to: from.clone().addScaledVector(dir, L), yaw: P.yaw, jaws: cmJaws(), bit: false, devour: [], biteN: 0, biteT: 0, end: CM_CHOMP.snap + 0.4 };
+}
+function cmUpdateChomp(dt) {
+  const C = CM.chomp; if (!C) return;
+  C.t += dt; const T = C.t, J = C.jaws, U = J.userData;
+  // the lunge (the clip's own forward drive; he stops short of the body he bites)
+  if (T >= CM_CHOMP.lungeAt && T <= CM_CHOMP.lungeEnd + dt) {
+    const k = easeOutCubic(clamp((T - CM_CHOMP.lungeAt) / (CM_CHOMP.lungeEnd - CM_CHOMP.lungeAt), 0, 1));
+    P.pos.lerpVectors(C.from, C.to, k); resolveCircle(P.pos, 0.45);
+    if (Math.random() < dt * 25) cmDust(P.pos, 1, 0.6);
+  }
+  if (!C.bit) {
+    // the jaws bloom out of a burst of crumbs in front of him, gape wide, then SLAM shut
+    const R = CM_CHOMP.jaw * 0.5, at = _c1.copy(P.pos).addScaledVector(C.dir, 1.0 + R);   // (the mouth's centre: where it bites)
+    J.position.set(at.x - C.jd.x * R, 1.05, at.z - C.jd.z * R); J.rotation.y = C.jy;
+    if (T > 0.08 && !J.visible) { J.visible = true; cmCrumbs(at.clone().setY(1.3), 18, 0.9); FX2.glow.spawn({ pos: at.clone().setY(1.3), life: 0.3, size: 1.2, sizeEnd: 2.6, cell: FXA.flare, pal: 'cookie', temp: 0.8, tempEnd: 0.4, int: 0.7, fadeIn: 0 }); }
+    J.scale.setScalar(Math.max(0.01, 0.3 + 0.7 * easeOutBack(clamp((T - 0.08) / 0.24, 0, 1))));
+    const open = T < CM_CHOMP.snap - 0.08 ? smoothstep(0.08, 0.32, T) : 1 - smoothstep(CM_CHOMP.snap - 0.08, CM_CHOMP.snap, T);
+    U.top.rotation.x = -1.1 * open; U.bot.rotation.x = 0.5 * open;
+    U.top.position.y = 0.6; U.bot.position.y = -0.6;
+    for (const e of U.eyes) e.material.opacity = 0.35 + 0.65 * smoothstep(0.1, 0.3, T);
+    U.maw.material.opacity = 0.35 * open;
+    if (Math.random() < dt * 30) FX2.glow.spawn({ pos: _c2.copy(J.position).addScaledVector(C.jd, rand(0.5, 2.5)).add(_c3.set(rand(-1.2, 1.2), rand(-0.5, 0.8), rand(-1.2, 1.2))), vel: V3(rand(-0.4, 0.4), rand(0.3, 1.2), rand(-0.4, 0.4)), life: rand(0.3, 0.6), size: rand(0.05, 0.09), sizeEnd: 0.01, cell: FXA.ember, pal: 'cookie', temp: 1.1, tempEnd: 0.5, int: 1.6 });
+    if (T >= CM_CHOMP.snap) cmChompBite(C);
+  } else cmUpdateDevour(C, dt);
+  if (T > C.end) { cmJawsBreak(C); CM.chomp = null; }
+}
+function cmChompBite(C) {
+  C.bit = true;
+  const dir = C.dir, J = C.jaws, dmg = cmDmg('cp');
+  const hits = dummiesInCone(P.pos, dir, CM_CHOMP.reach, CM_CHOMP.arc);
+  const at = J.position.clone().addScaledVector(C.jd, CM_CHOMP.jaw * 0.5).setY(1.0);
+  J.userData.top.rotation.x = 0; J.userData.bot.rotation.x = 0; J.userData.maw.material.opacity = 0;
+  Game.hitStop(hits.length ? 0.09 : 0.04, 0.05); Cam.shake = Math.max(Cam.shake, hits.length ? 0.55 : 0.3); Cam.fovKick = hits.length ? 6 : 3;
+  cmChips(at, 18, 1.0); cmCrumbs(at, 30, 1.2, 0.9);
+  FX2.burst(at, 'cookie', { size: 0.8, sparks: 22, embers: 10, puffs: 3, bursts: 1, int: 0.7, light: true, distort: true, smokeGlow: 0.3 });
+  FX2.ring(at.clone().setY(0), 'cookie', { radius: 3.4, dur: 0.4, width: 0.06 });
+  for (const d of hits) {
+    const full = cmCrumbsOf(d) >= CM_CRUMB.max;
+    Combat.deal(d, dmg, 'ability', 'Chomp');
+    if (full && C.devour.length < CM_CHOMP.maxDevour) C.devour.push(d);
+    else cmCrumb(d);
+    cmBurst(d.pos.clone().setY(1.2), 0.45, { distort: false, light: false });
+    Sound.god('cookie_hit', { gain: 0.8, pos: d.pos, rate: rand(0.9, 1.05) });
+  }
+  if (C.devour.length) {   // DEVOUR: the jaws grab it and bite again, and again, and again
+    C.biteT = CM_CHOMP.biteGap + 0.06; C.end = CM_CHOMP.snap + 0.1 + (CM_CHOMP.bites + 0.3) * CM_CHOMP.biteGap + 0.4;
+    Sound.voice('q', { chance: 1, cooldown: 0, priority: 3, delay: 0.1 });
+    cmText(C.devour[0].pos.clone().setY((C.devour[0].height || 2) + 1.0), 'DEVOUR!', '#ffb35a', true);
+  }
+}
+function cmUpdateDevour(C, dt) {
+  const J = C.jaws, U = J.userData;
+  if (!C.devour.length) {   // nothing to eat: the jaws stay shut a moment, shuddering, then crumble
+    J.scale.setScalar(1 + 0.05 * Math.sin(C.t * 70) * Math.max(0, 1 - (C.t - CM_CHOMP.snap) * 5));
+    return;
+  }
+  // the mouth closes ON it: the hinge moves behind the first one it devours
+  const v = C.devour[0], tx = v.pos.x - C.jd.x * CM_CHOMP.jaw * 0.5, tz = v.pos.z - C.jd.z * CM_CHOMP.jaw * 0.5;
+  J.position.x = damp(J.position.x, tx, 14, dt); J.position.z = damp(J.position.z, tz, 14, dt);
+  if (C.biteN >= CM_CHOMP.bites) { U.top.rotation.x = 0; U.bot.rotation.x = 0; J.scale.setScalar(1 + 0.04 * Math.sin(C.t * 60)); return; }
+  C.biteT -= dt;
+  const ph = clamp(1 - C.biteT / CM_CHOMP.biteGap, 0, 1), o = Math.sin(ph * Math.PI) * (ph < 0.5 ? 1 : 1);
+  U.top.rotation.x = -0.8 * o; U.bot.rotation.x = 0.35 * o; U.maw.material.opacity = 0.3 * o;
+  if (C.biteT <= 0) { C.biteN++; C.biteT = CM_CHOMP.biteGap; U.top.rotation.x = 0; U.bot.rotation.x = 0; cmDevourBite(C, C.biteN); }
+}
+function cmDevourBite(C, i) {
+  const last = i >= CM_CHOMP.bites, per = cmDmg('cp', 'devour', 'devourScale');   // (one bite per Crumb eaten)
+  Game.hitStop(last ? 0.14 : 0.07, last ? 0.04 : 0.08); Cam.shake = Math.max(Cam.shake, last ? 0.8 : 0.45); Cam.fovKick = last ? 10 : 5;
+  Sound.god(last ? 'crunch' : 'cookie_hit', { gain: last ? 1.25 : 1.0, rate: last ? 0.78 : rand(0.92, 1.1) });
+  if (last) Sound.god('cookie_throw', { gain: 0.8, rate: 0.82 });
+  for (const d of C.devour) {
+    const hp = d.pos.clone().setY((d.height || 2) * 0.55 + (d.lift || 0));
+    if (d.alive) Combat.deal(d, per, 'ability', 'Devour');
+    cmBurst(hp, last ? 0.95 : 0.55, { distort: last, light: false, int: 0.6 }); cmChips(hp, last ? 26 : 10, last ? 1.4 : 0.8);
+    for (let k = 0; k < (last ? 30 : 12); k++) { const a = rand(0, TAU), sp = rand(2, last ? 7 : 4); FX2.solid.spawn({ pos: hp, vel: V3(Math.cos(a) * sp, rand(1.5, 5), Math.sin(a) * sp), life: rand(0.6, 1.0), size: rand(0.06, 0.14), sizeEnd: 0.05, cell: FXA.drop, pal: 'choco', temp: 0.1, tempEnd: 0, alpha: 1, gravity: -13, drag: 0.4, floor: true, stretch: 1.6 }); }
+    cmKnockUp(d, last ? 0.4 : 0.2, last ? 0.8 : 0.3);
+    if (last) cmCrumbDrop(d);   // (its Crumbs are eaten)
+  }
+  if (last) { cmFeast(1); FX2.ring(C.jaws.position.clone().setY(0).addScaledVector(C.jd, CM_CHOMP.jaw * 0.5), 'cookie', { radius: 5, dur: 0.5, width: 0.07, int: 1.2 }); }
 }
 
-// ---- E · Crumble Form: he rolls up into a giant cookie wheel (a free toggle) -----------------------------
+// ---- E · Crumble Form: he rolls up into a giant cookie wheel (a free toggle) that rams through enemies -------------
 function castCrumble() {
   if (CM.form === 'roll') { cmRollOut(); return; }
   if (CM.form !== 'normal') return;
   const W = new THREE.Group(), tilt = new THREE.Group(), spin = new THREE.Group(), disc = makeCookieDisc(CM_ROLL.radius * 2);
   W.add(tilt); tilt.add(spin); spin.add(disc); scene.add(W);
   W.position.set(P.pos.x, CM_ROLL.radius, P.pos.z); W.rotation.y = P.yaw;
-  CM.roll = { W, tilt, spin, yaw: P.yaw, ang: 0, lean: 0, grow: 0, dustT: 0, loop: Sound.god('roll_loop', { gain: 0.0001, loop: true }) };
+  // (its own materials: the molten-chocolate coat darkens, glosses and heats them)
+  const mats = [];
+  disc.traverse((o) => { if (o.isMesh && o.material) { o.material = o.material.clone(); mats.push({ m: o.material, c: o.material.color.clone(), r: o.material.roughness ?? 0.8 }); } });
+  CM.roll = { W, tilt, spin, disc, mats, yaw: P.yaw, ang: 0, lean: 0, grow: 0, dustT: 0, coat: 0, ck: 0, hitT: new Map(), trailAcc: 0, loop: Sound.god('roll_loop', { gain: 0.0001, loop: true }) };
   CM.form = 'roll';
   if (CM.home) CM.home.rig.root.visible = false;
   cmPuff(P.pos, 0.9);
@@ -179,7 +387,8 @@ function cmRollOut() {
   const R = CM.roll; if (!R) return;
   cmPuff(P.pos, 0.9);
   if (R.loop) R.loop.stop(0.2);
-  cmDrop(R.W);
+  for (const M of R.mats) M.m.dispose();
+  cmDropCookie(R.W);
   CM.roll = null; CM.form = 'normal';
   if (CM.home) CM.home.rig.root.visible = true;
   Game.anim.play('land');
@@ -192,6 +401,7 @@ function cmPuff(c, s = 1) {   // the crunchy transform puff
   FX2.ring(c.clone().setY(0), 'cookie', { radius: 3 * s, dur: 0.45, width: 0.06 });
   Cam.shake = Math.max(Cam.shake, 0.2 * s);
 }
+function cmInPool(p, k = 0.9) { return CM.pools.some((Q) => !Q.cool && !Q.hot && Math.hypot(p.x - Q.c.x, p.z - Q.c.z) < Q.R * k); }
 function cmUpdateRoll(dt) {
   const R = CM.roll; if (!R) return;
   const sp = Math.hypot(P.vel.x, P.vel.z);
@@ -203,87 +413,216 @@ function cmUpdateRoll(dt) {
   R.W.rotation.y = R.yaw; R.tilt.rotation.z = R.lean; R.spin.rotation.x = R.ang;
   R.W.scale.setScalar(Math.max(0.05, easeOutBack(R.grow)));
   if (R.loop) R.loop.g.gain.setTargetAtTime(Math.max(0.0001, Math.min(0.9, sp / 6) * cmNear()), Sound.ctx.currentTime, 0.1);
-  // a crumb trail behind the wheel
+  // through his own molten chocolate: the wheel comes out COATED - dark, glossy, dripping and burning
+  R.coat = Math.max(0, R.coat - dt);
+  if (cmInPool(P.pos)) { if (R.coat < 0.2) { Sound.god('mine_place', { gain: 0.55, rate: 1.3 }); FX2.burst(P.pos.clone().setY(0.6), 'choco', { size: 0.6, sparks: 6, embers: 4, puffs: 3, bursts: 0, light: false, distort: false }); } R.coat = CM_ROLL.coat; }
+  R.ck = damp(R.ck, R.coat > 0 ? 1 : 0, R.coat > 0 ? 8 : 2.5, dt);
+  const fl = 0.75 + 0.25 * Math.sin(Game.time * 9) * Math.sin(Game.time * 3.7);
+  for (const M of R.mats) { M.m.color.copy(M.c).lerp(CMC.coat, 0.82 * R.ck); M.m.roughness = lerp(M.r, 0.14, R.ck); if (M.m.emissive) { M.m.emissive.setRGB(0.26, 0.06, 0.0).multiplyScalar(R.ck * fl); M.m.emissiveIntensity = 1; } }
+  const top = _c3.set(P.pos.x, R.W.position.y + CM_ROLL.radius * 0.9, P.pos.z);
+  if (R.ck > 0.3) {
+    if (Math.random() < dt * 26 * R.ck) FX2.fire.spawn({ pos: _c2.copy(top).add(_c4.set(rand(-0.4, 0.4), rand(-0.6, 0.1), rand(-0.4, 0.4))), vel: V3(rand(-0.3, 0.3), rand(1.2, 2.4), rand(-0.3, 0.3)), life: rand(0.25, 0.45), size: rand(0.35, 0.6), sizeEnd: 0.08, frames: 16, pal: 'cfire', temp: 1.0, tempEnd: 0.4, int: 1.2 });
+    if (Math.random() < dt * 14 * R.ck) FX2.solid.spawn({ pos: _c2.set(P.pos.x + rand(-0.3, 0.3), R.W.position.y + rand(-0.3, 0.6), P.pos.z + rand(-0.3, 0.3)), vel: V3(rand(-0.8, 0.8), rand(0.5, 2), rand(-0.8, 0.8)), life: rand(0.6, 1.0), size: rand(0.06, 0.12), sizeEnd: 0.05, cell: FXA.drop, pal: 'choco', temp: 0.15, tempEnd: 0, alpha: 1, gravity: -12, floor: true, stretch: 1.6 });
+  }
+  // a crumb trail behind the wheel - and coated, a burning chocolate trail that sears whoever steps in it
   R.dustT -= dt * sp;
   if (R.dustT <= 0 && sp > 1) { R.dustT = 0.5; const back = fwdOf(R.yaw, _c1).multiplyScalar(-0.8); cmCrumbs(_c2.copy(P.pos).add(back).setY(0.1), 2, 0.5, 0.5); if (Math.random() < 0.4) cmDust(_c2, 1, 0.6); }
+  if (R.coat > 0 && sp > 1) {
+    R.trailAcc += sp * dt;
+    while (R.trailAcc > 0.6) {
+      R.trailAcc -= 0.6;
+      const g = P.pos.clone().addScaledVector(fwdOf(R.yaw, _c1), -0.7).setY(0);
+      CM.trail.push({ p: g, t: CM_ROLL.trailLife, burn: cmDmg('mo', 'burn', 'burnScale') * 0.6 });
+      FX2.scorch(g, 'cfire', { radius: 0.7, dur: CM_ROLL.trailLife + 1, int: 1.3, dark: new THREE.Color(0.14, 0.05, 0.02), darkAlpha: 0.8 });
+    }
+  }
+  // it RAMS whoever it rolls over: a crunchy hit, shoved aside, a Crumb (coated: half again as hard, and it burns)
+  if (sp > CM_ROLL.minSpeed) {
+    for (const d of dummiesNear(P.pos, CM_ROLL.radius + 0.35)) {
+      if (Game.time - (R.hitT.get(d) ?? -9) < CM_ROLL.icd) continue;
+      R.hitT.set(d, Game.time);
+      const coated = R.coat > 0, dmg = cmDmg('cf', 'roll', 'rollScale') * (coated ? CM_ROLL.coatK : 1);
+      Combat.deal(d, dmg, 'ability', coated ? 'Molten Crumble' : 'Crumble Form');
+      cmCrumb(d);
+      if (coated && d.bleed) d.bleed(cmDmg('mo', 'burn', 'burnScale') * 0.6, 2, 'Molten Chocolate');
+      const f = fwdOf(R.yaw, _c3), sx = d.pos.x - P.pos.x, sz = d.pos.z - P.pos.z, lat = sx * f.z - sz * f.x;
+      d.shove(_c4.set(f.z, 0, -f.x).multiplyScalar(lat >= 0 ? 1.5 : -1.5).addScaledVector(f, 0.9), 1.2);
+      cmKnockUp(d, 0.32, 0.5);
+      const hp = d.pos.clone().setY(1.0);
+      cmBurst(hp, 0.55, { distort: false, light: coated, pal: coated ? 'cfire' : 'cookie' }); cmChips(hp, 10, 0.9);
+      if (coated) FX2.burst(hp, 'choco', { size: 0.6, sparks: 8, embers: 6, puffs: 2, bursts: 0, light: false, distort: false });
+      Sound.god('crunch', { gain: 1.0, pos: d.pos, rate: rand(0.9, 1.05) }); Sound.god('cookie_hit', { gain: 0.8, pos: d.pos });
+      Game.hitStop(0.045, 0.2); Cam.shake = Math.max(Cam.shake, 0.32);
+    }
+  }
+}
+// the burning chocolate trail: it sears whatever stands in it (a tick every 0.5 s)
+function cmUpdateTrail(dt) {
+  if (!CM.trail.length) return;
+  CM.trailT -= dt; const tick = CM.trailT <= 0; if (tick) CM.trailT = 0.5;
+  for (const S of CM.trail) {
+    S.t -= dt;
+    if (Math.random() < dt * 5) FX2.fire.spawn({ pos: _c2.set(S.p.x + rand(-0.3, 0.3), 0.15, S.p.z + rand(-0.3, 0.3)), vel: V3(0, rand(0.8, 1.6), 0), life: rand(0.3, 0.5), size: rand(0.25, 0.45), sizeEnd: 0.06, frames: 16, pal: 'cfire', temp: 1.0, tempEnd: 0.4, int: 1.1 });
+  }
+  CM.trail = CM.trail.filter((S) => S.t > 0);
+  if (!tick) return;
+  for (const d of Combat.dummies) {
+    if (!d.alive) continue;
+    const S = CM.trail.find((s) => Math.hypot(d.pos.x - s.p.x, d.pos.z - s.p.z) < 0.9 + d.radius);
+    if (S) Combat.deal(d, S.burn * 0.5, 'dot', 'Molten Crumble');
+  }
 }
 
-// ---- R · Dough Mine: a cookie-dough bomb lobbed onto the aimed point ------------------------------------
-function cmMineMesh() {
-  // a big chocolate-chip cookie bomb: a thick golden disc lying flat, chunky glossy chips on top, a glowing,
-  // bubbling dough core in a crack, and a caramel candy-stick fuse with a sizzling spark
-  const g = new THREE.Group(), K = CM_MINE.size;
-  const disc = makeCookieDisc(0.62 * K); disc.rotation.z = Math.PI / 2; disc.position.y = 0.07 * K; g.add(disc);
-  const choc = new THREE.MeshStandardMaterial({ color: 0x24100a, roughness: 0.22, metalness: 0.05 });
-  for (let i = 0; i < 9; i++) { const a = rand(0, TAU), r = rand(0.06, 0.24) * K; const c = new THREE.Mesh(new THREE.DodecahedronGeometry(rand(0.03, 0.05) * K, 0), choc); c.position.set(Math.cos(a) * r, 0.135 * K + rand(0, 0.01), Math.sin(a) * r); c.rotation.set(rand(0, 3), rand(0, 3), rand(0, 3)); c.scale.y = 0.7; g.add(c); }
-  const core = new THREE.Mesh(new THREE.SphereGeometry(0.075 * K, 16, 12), new THREE.MeshStandardMaterial({ color: 0xffb04a, roughness: 0.4, emissive: new THREE.Color(1.0, 0.42, 0.05), emissiveIntensity: 1.2 }));
-  core.position.set(0.04 * K, 0.12 * K, -0.03 * K); core.scale.y = 0.55; g.add(core);
-  const caramel = new THREE.MeshStandardMaterial({ color: 0xc86a14, roughness: 0.25, metalness: 0.2, emissive: new THREE.Color(0.3, 0.1, 0.0), emissiveIntensity: 0.5 });
-  const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.014 * K, 0.018 * K, 0.22 * K, 8), caramel); stick.position.set(-0.05 * K, 0.24 * K, 0); stick.rotation.z = 0.35; g.add(stick);
-  const drip = new THREE.Mesh(new THREE.SphereGeometry(0.022 * K, 10, 8), caramel); drip.scale.y = 1.6; drip.position.set(-0.02 * K, 0.17 * K, 0.012 * K); g.add(drip);
-  const spark = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowSpriteTexture(), color: new THREE.Color(1.0, 0.45, 0.05), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.0 }));
-  spark.scale.setScalar(0.42 * K); spark.position.set(-0.09 * K, 0.35 * K, 0); spark.renderOrder = 7; g.add(spark);
-  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowSpriteTexture(), color: new THREE.Color(1.0, 0.38, 0.04), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.0 }));
-  glow.scale.setScalar(0.5 * K); glow.position.copy(core.position); glow.renderOrder = 7; g.add(glow);
-  g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
-  g.userData = { spark, glow, core, tip: new THREE.Vector3(-0.09 * K, 0.35 * K, 0) };
-  return g;
+// ---- R · Molten Chocolate: a huge cookie hurled onto the ground bursts into a pool of molten chocolate --------------
+// The pool is a real surface: a glossy clear-coated physical material whose vertices swell into slow waves and fat
+// bubbles (they grow, POP and ripple out), a thin lip at its splattered rim, molten-orange heat glowing up through
+// cracks in its skin, steam and heat haze over it. (Skyfall's crater is the same pool, white-hot: hot = 1.)
+const CMP_N = 8;   // bubbles per pool
+function cmPoolMesh(R, hot = 0) {
+  const geo = new THREE.PlaneGeometry(R * 2.3, R * 2.3, 110, 110); geo.rotateX(-Math.PI / 2);
+  const mat = new THREE.MeshPhysicalMaterial({ color: hot ? 0x4a1a08 : 0x3d1b0b, roughness: 0.14, metalness: 0.0, clearcoat: 1.0, clearcoatRoughness: 0.06, sheen: 0.35, sheenColor: new THREE.Color(0.55, 0.28, 0.1), envMapIntensity: 1.5, emissive: new THREE.Color(0, 0, 0) });
+  const U = { uTime: { value: 0 }, uR: { value: R }, uGrow: { value: 0 }, uCool: { value: 0 }, uHot: { value: hot }, uSeed: { value: Math.random() * 10 },
+    uB: { value: Array.from({ length: CMP_N }, () => new THREE.Vector4(0, 0, 0, 0)) }, uNoise: { value: FX2.tex && FX2.tex.noise } };
+  const HF = /* glsl */`
+    uniform float uTime, uR, uGrow, uCool, uSeed, uHot; uniform vec4 uB[${CMP_N}];
+    float cmEdge(vec2 p) { float a = atan(p.y, p.x); return uR * uGrow * (0.85 + 0.07 * sin(a * 5.0 + uSeed) + 0.05 * sin(a * 11.0 - uSeed * 2.0) + 0.03 * sin(a * 23.0 + uSeed * 3.0)); }
+    float cmH(vec2 p) {
+      float r = length(p), e = cmEdge(p);
+      float body = smoothstep(e + 0.02, e - 0.6, r);
+      float h = 0.075 * body + 0.03 * body * sin(p.x * 1.7 + uTime * 0.9 + uSeed) * sin(p.y * 1.3 - uTime * 0.7);
+      for (int i = 0; i < ${CMP_N}; i++) {
+        vec4 b = uB[i]; float d = length(p - b.xy);
+        if (b.w < 0.92) h += body * sqrt(max(0.0, b.z * b.z - d * d)) * 0.8;
+        else { float k = (b.w - 0.92) / 0.08; h += body * 0.035 * sin(d * 16.0 - k * 9.0) * exp(-d * 2.5) * (1.0 - k); }
+      }
+      return h * (1.0 - 0.6 * uCool);
+    }`;
+  mat.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, U);
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\n' + HF + '\nvarying vec2 vCmP;')
+      .replace('#include <beginnormal_vertex>', `vec2 cmP0 = position.xz; float cmE0 = 0.035, cmHC = cmH(cmP0);
+        vec3 objectNormal = normalize(vec3(-(cmH(cmP0 + vec2(cmE0, 0.0)) - cmHC) / cmE0, 1.0, -(cmH(cmP0 + vec2(0.0, cmE0)) - cmHC) / cmE0));
+        #ifdef USE_TANGENT
+        vec3 objectTangent = vec3(tangent.xyz);
+        #endif`)
+      .replace('#include <begin_vertex>', 'vec3 transformed = vec3(position.x, position.y + cmHC, position.z); vCmP = position.xz;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\n' + HF + '\nvarying vec2 vCmP; uniform sampler2D uNoise;')
+      .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\n float cmR = length(vCmP), cmE = cmEdge(vCmP); if (cmR > cmE) discard;')
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        float cmN = texture2D(uNoise, vCmP * 0.11 + uSeed).r, cmN2 = texture2D(uNoise, vCmP * 0.33 + vec2(uTime * 0.015, -uTime * 0.02)).g;
+        diffuseColor.rgb *= 0.86 + 0.28 * cmN;
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.13, 0.055, 0.025), smoothstep(cmE - 0.3, cmE, cmR) * 0.65 + 0.35 * uCool);`)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        float cmCr = (1.0 - smoothstep(0.0, 0.035 + 0.05 * uHot, abs(cmN2 - 0.5))) * smoothstep(cmE, cmE * 0.45, cmR) * (0.35 + 0.65 * uHot);   // thin glowing veins in its skin
+        float cmHeat = (1.0 - uCool) * (0.6 + 0.4 * sin(uTime * 2.6 + cmN * 12.0));
+        totalEmissiveRadiance += vec3(1.0, 0.3, 0.04) * cmCr * cmHeat * (0.9 + 2.2 * uHot) + vec3(0.9, 0.22, 0.02) * uHot * (1.0 - uCool) * smoothstep(cmE, 0.0, cmR) * 0.35;`);
+  };
+  mat.customProgramCacheKey = () => 'cmPool' + CMP_N;
+  const m = new THREE.Mesh(geo, mat); m.receiveShadow = true; m.renderOrder = 2; m.frustumCulled = false;
+  m.userData.U = U;
+  return m;
 }
-function castDoughMine() {
-  spend('dm'); startCd('dm');
-  const to = groundTarget(AB.dm.range * SU, 2.5), from = handPos('L', new THREE.Vector3());
-  Game.anim.play('plant');
-  Sound.voice('r', { chance: 0.5, cooldown: 6 });
-  Sound.god('mine_place', { gain: 0.9 });
-  if (CM.mines.length >= CM_MINE.max) cmMineBoom(CM.mines[0]);   // the oldest pops
-  const g = cmMineMesh(); g.position.copy(from); scene.add(g);
-  CM.mines.push({ g, pos: to.clone(), from, t: 0, armed: false, landed: false, dmg: cmDmg('dm'), dead: false });
+function cmBubbleReset(Q, b) { const a = rand(0, TAU), r = Q.R * 0.72 * Math.sqrt(Math.random()); b.x = Math.cos(a) * r; b.z = Math.sin(a) * r; b.rmax = rand(0.1, 0.28) * (Q.hot ? 0.8 : 1); b.ph = rand(-0.3, 0); b.sp = rand(0.45, 1.0); b.popped = false; }
+function cmPool(c, R, dur, o = {}) {
+  const m = cmPoolMesh(R, o.hot || 0); m.position.set(c.x, 0.035, c.z); m.rotation.y = rand(0, TAU); scene.add(m);
+  const Q = { c: c.clone().setY(0), R, dur, t: 0, m, U: m.userData.U, tick: 0, crumbT: new Map(), steamT: 0, hot: o.hot || 0, burn: o.burn || 0,
+    crumbs: o.crumbs !== false, slow: o.slow ?? CM_MOLTEN.slow, src: o.src || 'Molten Chocolate', cool: false, bub: [] };
+  for (let i = 0; i < CMP_N; i++) { const b = {}; cmBubbleReset(Q, b); b.ph = rand(0, 0.9); Q.bub.push(b); }
+  Q.haze = FX2.distort.heat(c.clone().setY(0.7), R * 1.7, Q.hot ? 0.007 : 0.0045, dur);
+  CM.pools.push(Q);
+  return Q;
 }
-function cmUpdateMines(dt, t) {
-  for (const M of CM.mines) {
-    M.t += dt;
-    if (!M.landed) {
-      const k = Math.min(1, M.t / CM_MINE.flight);
-      M.g.position.lerpVectors(M.from, M.pos, k); M.g.position.y = lerp(M.from.y, 0, k) + Math.sin(k * Math.PI) * 1.6;
-      M.g.rotation.x = k * 6;
-      if (k >= 1) { M.landed = true; M.g.rotation.set(0, rand(0, TAU), 0); M.g.position.copy(M.pos); cmCrumbs(M.pos.clone().setY(0.2), 6, 0.6, 0.6); cmDust(M.pos, 3, 0.5); }
-      continue;
+function cmUpdatePools(dt, t) {
+  for (const Q of CM.pools) {
+    Q.t += dt; const U = Q.U;
+    U.uTime.value = t;
+    U.uGrow.value = easeOutCubic(Math.min(1, Q.t / 0.35)) * (1 - 0.3 * smoothstep(Q.dur - 0.7, Q.dur, Q.t));   // it spreads, then sinks in
+    const cool = smoothstep(Q.dur - 0.9, Q.dur, Q.t); U.uCool.value = cool; Q.cool = cool > 0.5;
+    // bubbles: they swell, POP with a splash of chocolate and a puff of steam, and ripple out
+    for (let i = 0; i < CMP_N; i++) {
+      const b = Q.bub[i]; b.ph += dt * b.sp;
+      if (b.ph >= 1) cmBubbleReset(Q, b);
+      else if (b.ph >= 0.92 && !b.popped) {
+        b.popped = true;
+        if (!Q.cool) {
+          const p = Q.m.localToWorld(_c2.set(b.x, 0.12, b.z));
+          for (let k = 0; k < 7; k++) FX2.solid.spawn({ pos: p, vel: V3(rand(-1.2, 1.2), rand(1.5, 3.2), rand(-1.2, 1.2)), life: rand(0.4, 0.7), size: rand(0.04, 0.08), sizeEnd: 0.03, cell: FXA.drop, pal: Q.hot ? 'cfire' : 'choco', temp: Q.hot ? 0.8 : 0.1, tempEnd: 0, alpha: 1, gravity: -12, floor: true, stretch: 1.4 });
+          FX2.smoke.spawn({ pos: p, vel: V3(rand(-0.2, 0.2), rand(0.6, 1.1), rand(-0.2, 0.2)), life: rand(1.0, 1.6), size: 0.25, sizeEnd: 0.9, frames: 16, pal: Q.hot ? 'cfire' : 'steam', temp: Q.hot ? 0.4 : 0, tempEnd: 0, int: 1, alpha: 0.18, drag: 1.2, turb: 0.5, fadeIn: 0.1 });
+        }
+      }
+      const grow = b.ph <= 0 ? 0 : Math.pow(Math.min(1, b.ph / 0.92), 0.7);
+      U.uB.value[i].set(b.x, b.z, Q.cool ? 0 : b.rmax * grow, Math.max(0, b.ph));
     }
-    if (!M.armed && M.t >= CM_MINE.flight + CM_MINE.arm) { M.armed = true; Sound.god('mine_arm', { gain: 0.6, pos: M.pos }); FX2.ring(M.pos, 'cookie', { radius: 1.0, dur: 0.35, width: 0.05, int: 0.8 }); }
-    // the bubbling dough and the fuse spark (only the owner sees the faint ring: it is subtle, sneaky for the foes)
-    const U = M.g.userData, sp = U.spark; sp.material.opacity = M.armed ? 0.55 + 0.35 * Math.sin(t * 17 + M.t) * Math.sin(t * 7.3) : 0.15;
-    U.glow.material.opacity = (M.armed ? 0.35 : 0.15) + 0.15 * Math.sin(t * 3.1 + M.t); U.core.scale.set(1 + 0.08 * Math.sin(t * 4 + M.t), 0.55 + 0.06 * Math.sin(t * 5.3), 1 + 0.08 * Math.cos(t * 4.4));
-    if (M.armed && Math.random() < dt * 4) FX2.glow.spawn({ pos: _c1.copy(M.pos).add(_c2.set(rand(-0.1, 0.1), 0.42, rand(-0.1, 0.1))), vel: V3(rand(-0.2, 0.2), rand(0.4, 0.9), rand(-0.2, 0.2)), life: 0.4, size: 0.04, sizeEnd: 0.01, cell: FXA.spark, pal: 'cfire', temp: 1.1, tempEnd: 0.5, int: 1.8 });
-    if (Math.random() < dt * 2.5) FX2.glow.spawn({ pos: _c1.copy(M.pos).setY(0.22 * CM_MINE.size), vel: V3(0, rand(0.1, 0.3), 0), life: 0.7, size: 0.06, sizeEnd: 0.2, cell: FXA.bubble, pal: 'cookie', temp: 0.8, tempEnd: 0.5, int: 1.0 });   // the dough bubbles
-    if (M.armed && dummiesNear(M.pos, CM_MINE.trigger).length) cmMineBoom(M);
-    else if (M.t > CM_MINE.life) cmMineBoom(M, true);
+    // steam rising off it (and embers out of a white-hot crater)
+    Q.steamT -= dt;
+    if (Q.steamT <= 0 && !Q.cool) {
+      Q.steamT = Q.hot ? 0.06 : 0.14;
+      const a = rand(0, TAU), r = Q.R * 0.8 * Math.sqrt(Math.random()), p = _c2.set(Q.c.x + Math.cos(a) * r, 0.15, Q.c.z + Math.sin(a) * r);
+      FX2.smoke.spawn({ pos: p, vel: V3(rand(-0.15, 0.15), rand(0.5, 1.0), rand(-0.15, 0.15)), life: rand(1.4, 2.2), size: 0.4, sizeEnd: rand(1.4, 2.0), frames: 16, pal: Q.hot ? 'cfire' : 'steam', temp: Q.hot ? 0.35 : 0, tempEnd: 0, int: 1, alpha: Q.hot ? 0.35 : 0.1, drag: 1.0, turb: 0.6, fadeIn: 0.2 });
+      if (Q.hot && Math.random() < 0.7) FX2.glow.spawn({ pos: p, vel: V3(rand(-0.4, 0.4), rand(1.5, 3.5), rand(-0.4, 0.4)), life: rand(0.6, 1.1), size: rand(0.05, 0.09), sizeEnd: 0.01, cell: FXA.ember, pal: 'cfire', temp: 1.1, tempEnd: 0.5, int: 1.8, turb: 1.5 });
+    }
+    // whoever is in it is stuck (slowed), burns, and (his chocolate) gets crumbed every 1.2 s
+    if (!Q.cool) {
+      Q.tick -= dt; const tick = Q.tick <= 0; if (tick) Q.tick = CM_MOLTEN.tick;
+      for (const d of dummiesNear(Q.c, Q.R * 0.85)) {
+        d.slowed(Q.slow, 0.4);
+        if (tick && Q.burn > 0) Combat.deal(d, Q.burn * CM_MOLTEN.tick, 'dot', Q.src);
+        if (Q.crumbs) { const ct = (Q.crumbT.has(d) ? Q.crumbT.get(d) : CM_MOLTEN.crumbEvery * 0.5) - dt; if (ct <= 0) { cmCrumb(d); Q.crumbT.set(d, CM_MOLTEN.crumbEvery); } else Q.crumbT.set(d, ct); }
+        if (Math.random() < dt * 8) FX2.solid.spawn({ pos: _c2.set(d.pos.x + rand(-0.3, 0.3), 0.12, d.pos.z + rand(-0.3, 0.3)), vel: V3(rand(-0.8, 0.8), rand(0.8, 2.0), rand(-0.8, 0.8)), life: rand(0.4, 0.7), size: rand(0.05, 0.09), sizeEnd: 0.03, cell: FXA.drop, pal: 'choco', temp: 0.1, tempEnd: 0, alpha: 1, gravity: -12, floor: true, stretch: 1.4 });   // it wades through it
+      }
+    }
+    if (Q.t >= Q.dur) { Q.dead = true; if (Q.haze) Q.haze.dead = true; cmDrop(Q.m); Q.m.geometry.dispose(); Q.m.material.dispose(); }
   }
-  CM.mines = CM.mines.filter((M) => !M.dead);
+  CM.pools = CM.pools.filter((Q) => !Q.dead);
 }
-function cmMineBoom(M, fizzle = false) {
-  if (M.dead) return;
-  M.dead = true; cmDrop(M.g);
-  const c = M.pos.clone().setY(0), R = CM_MINE.radius;
-  if (fizzle) { cmDust(c, 4, 0.6); cmCrumbs(c.clone().setY(0.2), 8, 0.6); return; }
-  Sound.god('mine_boom', { gain: 1.2, pos: c });
-  Game.hitStop(0.05, 0.2);
-  Cam.shake = Math.max(Cam.shake, 0.45);
-  PostFX.shock(c.clone().setY(0.6), 0.6, 0.5);
-  FX2.impact(c, 'cookie', { size: 1.35, ring: R / 1.35 + 0.4, sparks: 44, debris: 16, dustPal: 'choco', dustGlow: 0.12, int: 0.85, glowRocks: true });
-  FX2.burst(c.clone().setY(0.9), 'choco', { size: 1.0, sparks: 14, embers: 10, puffs: 9, bursts: 1, int: 0.7, light: false, smokeGlow: 0.25 });
-  // chocolate chunks, a caramel splash, a rolling crumb cloud
-  cmChips(c.clone().setY(0.4), 30, 1.4); cmCrumbs(c.clone().setY(0.5), 36, 1.4, 1.2);
-  for (let i = 0; i < 40; i++) { const a = rand(0, TAU), sp = rand(3, 8); FX2.solid.spawn({ pos: c.clone().setY(0.4), vel: V3(Math.cos(a) * sp, rand(3, 7), Math.sin(a) * sp), life: rand(0.7, 1.2), size: rand(0.07, 0.15), sizeEnd: 0.05, cell: FXA.drop, pal: 'cookie', temp: 0.3, tempEnd: 0, alpha: 0.95, gravity: -13, drag: 0.4, floor: true, stretch: 1.6 }); }
-  for (let i = 0; i < 18; i++) { const a = (i / 18) * TAU, ox = Math.cos(a), oz = Math.sin(a); FX2.smoke.spawn({ pos: V3(c.x + ox * 0.6, rand(0.3, 1.0), c.z + oz * 0.6), vel: V3(ox * rand(4, 7), rand(0.4, 1.4), oz * rand(4, 7)), life: rand(1.2, 1.8), size: 0.8, sizeEnd: rand(2.6, 3.4), frames: 16, pal: 'choco', temp: 0.2, tempEnd: 0, int: 1, alpha: 0.7, drag: 2.6, turb: 0.6, fadeIn: 0.03 }); }
-  for (let i = 0; i < 14; i++) FX2.glow.spawn({ pos: c.clone().setY(0.3), vel: V3(rand(-2.5, 2.5), rand(1, 3.5), rand(-2.5, 2.5)), life: rand(0.6, 1.0), size: rand(0.14, 0.26), sizeEnd: 0.05, cell: FXA.bubble, pal: 'cookie', temp: 0.9, tempEnd: 0.4, int: 1.3, gravity: -4, drag: 1 });
-  FX2.scorch(c, 'cookie', { radius: 3.0, dur: 6, int: 0.65, dark: new THREE.Color(0.16, 0.07, 0.02), darkAlpha: 0.7 });
-  VFX.cracks(c, R * 0.6, 3, { grow: 0.15, intensity: 1.1, color: CMC.caramel });
-  for (const d of dummiesNear(c, R)) {
-    Combat.deal(d, M.dmg, 'ability', 'Dough Mine');
-    if (d.rooted) d.rooted(CM_MINE.root);
-    cmKnockUp(d, CM_MINE.lift, 1.0);
-    cmBurst(d.pos.clone().setY(1.0), 0.4, { distort: false, light: false });
+function castMolten() {
+  spend('mo'); startCd('mo');
+  const to = groundTarget(AB.mo.range * SU, 3);
+  Game.anim.play('hurl');
+  Sound.voice('r', { chance: 0.6, cooldown: 5 });
+  VFX.later(CM_MOLTEN.release, () => {
+    if (Kit !== GODS.cookie || CM.form !== 'normal') return;
+    // the big cookie in his hand is the one he throws (it regrows in his hand)
+    const held = CM.home && CM.home.rig.prop;
+    const from = held && held.visible ? held.getWorldPosition(new THREE.Vector3()) : aimOrigin();
+    from.y = Math.max(from.y, 1.4);
+    CM.cookieBack = 1.3;
+    const g = makeCookieDisc(1.5); scene.add(g); g.position.copy(from);
+    Sound.god('punch_swing3', { gain: 0.95, rate: 0.78 });
+    cmCrumbs(from, 8, 0.7);
+    CM.throws.push({ g, from, to: to.clone(), t: 0, yaw: Math.atan2(to.x - from.x, to.z - from.z), dmg: cmDmg('mo'), burn: cmDmg('mo', 'burn', 'burnScale') });
+  });
+}
+function cmUpdateThrows(dt) {
+  for (const T of CM.throws) {
+    T.t += dt; const k = Math.min(1, T.t / CM_MOLTEN.flight), g = T.g;
+    g.position.lerpVectors(T.from, T.to, k); g.position.y = lerp(T.from.y, 0.5, k) + Math.sin(k * Math.PI) * 3.6;
+    _cQ.setFromAxisAngle(_cUp, T.yaw); _cQ2.setFromAxisAngle(_c1.set(1, 0, 0), k * 14); g.quaternion.copy(_cQ).multiply(_cQ2);
+    g.scale.setScalar(lerp(0.6, 1.0, Math.min(1, k * 3)));
+    if (Math.random() < dt * 30) cmCrumbs(g.position, 1, 0.4, 0.3);
+    if (k >= 1) { T.dead = true; cmMoltenSplash(T); }
   }
+  CM.throws = CM.throws.filter((T) => !T.dead);
+}
+function cmMoltenSplash(T) {
+  const c = T.to.clone().setY(0);
+  cmDropCookie(T.g);
+  Sound.god('mine_place', { gain: 1.25, pos: c });
+  Game.hitStop(0.05, 0.15); Cam.shake = Math.max(Cam.shake, 0.42);
+  PostFX.shock(c.clone().setY(0.5), 0.5, 0.45);
+  // the cookie BURSTS: chunks and crumbs, and thick chocolate thrown up in heavy ropes that splat back down
+  cmChips(c.clone().setY(0.5), 30, 1.4); cmCrumbs(c.clone().setY(0.6), 40, 1.4, 1.1);
+  for (let i = 0; i < 70; i++) { const a = rand(0, TAU), sp = rand(2, 7.5); FX2.solid.spawn({ pos: c.clone().setY(0.3), vel: V3(Math.cos(a) * sp, rand(2.5, 7), Math.sin(a) * sp), life: rand(0.7, 1.2), size: rand(0.08, 0.2), sizeEnd: 0.06, cell: FXA.drop, pal: 'choco', temp: 0.12, tempEnd: 0, alpha: 1, gravity: -14, drag: 0.4, floor: true, stretch: 1.8 }); }
+  FX2.burst(c.clone().setY(0.8), 'choco', { size: 1.1, sparks: 10, embers: 8, puffs: 6, bursts: 1, int: 0.6, light: false, smokeGlow: 0.15 });
+  FX2.burst(c.clone().setY(0.5), 'cookie', { size: 0.6, sparks: 18, embers: 10, puffs: 0, bursts: 1, int: 0.6, distort: true });
+  FX2.ring(c, 'cookie', { radius: CM_MOLTEN.radius + 1.2, dur: 0.5, width: 0.06 });
+  for (let i = 0; i < 12; i++) { const a = (i / 12) * TAU; FX2.smoke.spawn({ pos: V3(c.x + Math.cos(a) * 1.2, 0.4, c.z + Math.sin(a) * 1.2), vel: V3(Math.cos(a) * rand(2, 4), rand(0.6, 1.4), Math.sin(a) * rand(2, 4)), life: rand(1.2, 1.8), size: 0.6, sizeEnd: 2.2, frames: 16, pal: 'steam', temp: 0, tempEnd: 0, int: 1, alpha: 0.16, drag: 2.4, turb: 0.6, fadeIn: 0.05 }); }
+  for (const d of dummiesNear(c, CM_MOLTEN.impactR)) {
+    Combat.deal(d, T.dmg, 'ability', 'Molten Chocolate');
+    cmCrumb(d);
+    cmBurst(d.pos.clone().setY(1.0), 0.4, { distort: false, light: false, pal: 'choco' });
+  }
+  cmPool(c, CM_MOLTEN.radius, CM_MOLTEN.dur, { burn: T.burn });
 }
 // thrown up into the air (stunned while airborne), then a thud back down
 // (a replayed cast online lifts nothing: its caster's page throws the real one up and sends it, 14n_net.js)
@@ -325,6 +664,7 @@ function cmRageRig() {
     const anim = new RigAnimator(rig, null);
     if (nc) anim.fxK = nc.actor.fxK;
     anim.onStep = (p) => { if (Game.mode === 'play' && CM.form === 'rage' && Game.anim === anim) cmStomp(p); };   // (only as his own kit: never another player's rig)
+    anim.post = cmRagePost;   // (Molten Charge: the swords dragged through the floor)
     CM.rageR = { rig, anim, ribbons: [new CMRibbon(rig.props.swordR), new CMRibbon(rig.props.swordL)] };
   }
   return CM.rageR;
@@ -375,6 +715,7 @@ function cmRageIn() {
   const swapped = cmSwapForm(true);
   RG.swapped = swapped;
   CM.form = 'rage';
+  cmSetOrder(true);   // (Q E R: the rage's own abilities)
   // the explosion of fire and crumbs, the screen jolts, the floor splits (one warm flash: no strobing)
   const c = P.pos.clone();
   cmPuff(c, 2.0);
@@ -412,8 +753,10 @@ function cmRageOut() {
   const R = CM.rageR;
   // the swords crumble into burning crumbs as he shrinks back
   if (R) for (const k of ['swordR', 'swordL']) { const sw = R.rig.props[k]; if (!sw) continue; for (let i = 0; i < 6; i++) cmCrumbs(sw.localToWorld(_c1.lerpVectors(sw.userData.base, sw.userData.tip, i / 5)), 2, 0.6, 0.5); }
+  cmEndAct();
   cmSwapForm(false);
   CM.form = 'normal'; CM.rage = null;
+  cmSetOrder(false);
   cmPuff(P.pos, 1.4);
   FX2.burst(P.pos.clone().setY(1.6), 'cfire', { size: 0.9, sparks: 30, embers: 20, puffs: 4, bursts: 1, int: 0.6 });
   Game.anim.play('land');
@@ -434,6 +777,7 @@ function cmUpdateRage(dt, t) {
   }
   if (RG.t >= CM_RAGE.dur) { cmRageOut(); return; }
   const R = CM.rageR;
+  cmUpdateAct(dt);
   const swinging = !!(R && Game.anim.actions.some((a) => _swingActs.has(a.name)));
   // root motion: he steps into every swing (the clip's own stride), but stops short of the body he is hacking at
   const rm = Game.anim.rootMove;
@@ -445,7 +789,7 @@ function cmUpdateRage(dt, t) {
   }
   // a roar every few seconds - only between swings (it never cuts into the sword work)
   RG.roarT -= dt;
-  if (RG.roarT <= 0 && R && !swinging && RG.comboT <= 0) {
+  if (RG.roarT <= 0 && R && !swinging && RG.comboT <= 0 && !CM.act) {
     RG.roarT = CM_RAGE.roarEvery + rand(-0.5, 0.5);
     Game.anim.play('roar2', { noFx: true });
     Sound.voice('f_roar', { priority: 2, gain: 1.0, cooldown: 3 });
@@ -568,6 +912,276 @@ function cmBurningHit(d, s = 0.5, from = null) {
   const out = _c1.set(d.pos.x - P.pos.x, 0, d.pos.z - P.pos.z), L = out.length() || 1; d.shove(out.multiplyScalar(0.5 / L), 1.2);
   Sound.god('sword_hit', { gain: 0.9, pos: d.pos, rate: rand(0.88, 1.02), noDuck: true });
 }
+// ---- Cookie Rage's own abilities (Q/E/R while the swords burn) -------------------------------------------------
+// The ability bar swaps with the form (as Ullr's stances do): on foot Chomp / Crumble Form / Molten Chocolate, in the rage
+// Burning Cross / Molten Charge / Skyfall. The ones off the bar keep cooling down.
+function cmSetOrder(rage) {
+  const o = rage ? CM_ORDER.rage : CM_ORDER.normal;
+  if (Kit !== GODS.cookie) return;
+  if (rage) for (const k of CM_RAGE_IDS) P.cd[k] = 0;
+  if (ABILITY_ORDER.join() === o.join()) return;
+  ABILITY_ORDER = o.slice();
+  if (P.targeting && !ABILITY_ORDER.includes(P.targeting)) P.targeting = null;
+  if (HUD.els && HUD.els.abilities) HUD.rebuild();
+}
+function cmRageReal(act, ct) { const def = Game.anim.acts && Game.anim.acts[act]; return def ? Math.max(0, (ct - def.from) / def.rate) : 0; }
+function cmEndAct() {
+  const A = CM.act; if (!A) return;
+  if (A.loop) A.loop.stop(0.25);
+  if (A.id === 'sk') { if (!A.landed) P.pos.copy(A.to); P.y = 0; P.vy = 0; P.flying = false; P.grounded = true; }
+  CM.act = null;
+}
+function cmUpdateAct(dt) {
+  const A = CM.act; if (!A) return;
+  A.t += dt;
+  if (A.id === 'mh') cmUpdateCharge(A, dt);
+  else if (A.id === 'sk') cmUpdateSky(A, dt);
+  if (A.t >= A.end) cmEndAct();
+}
+// both arms dragged back and down while he charges, the swords trailing through the floor (IK over the run)
+function cmRagePost(rig, dt, anim) {
+  if (Game.anim !== anim) return;
+  const A = CM.act;
+  const w = A && A.id === 'mh' ? (A.phase === 'run' ? smoothstep(0, 0.08, A.t) : 1 - smoothstep(0, 0.14, A.t - A.upStart)) : 0;
+  if (w < 0.01) return;
+  const yaw = rig.root.rotation.y, fwd = _c2.set(Math.sin(yaw), 0, Math.cos(yaw)), left = _c3.set(Math.cos(yaw), 0, -Math.sin(yaw));
+  const hips = _c4.setFromMatrixPosition(rig.b('Hips').matrixWorld);
+  for (const [s, arm, fore, hand] of [[1, 'LeftArm', 'LeftForeArm', 'LeftHand'], [-1, 'RightArm', 'RightForeArm', 'RightHand']]) {
+    const target = _c1.copy(hips).addScaledVector(left, s * 1.1).addScaledVector(fwd, -0.6).add(_c5.set(0, -0.3, 0));
+    const pole = new THREE.Vector3().copy(left).multiplyScalar(s).addScaledVector(fwd, -0.5).add(_c5.set(0, -0.4, 0));
+    solveTwoBoneIK(rig.b(arm), rig.b(fore), rig.b(hand), target, pole, w);
+    // and the blade turned to trail behind and down, its point in the floor
+    const sw = rig.props && rig.props[s > 0 ? 'swordL' : 'swordR'], hb = rig.b(hand); if (!sw || !sw.userData.tip) continue;
+    hb.updateMatrixWorld(true);
+    const base = sw.localToWorld(_cS.copy(sw.userData.base || _c5.set(0, 0, 0))), cur = sw.localToWorld(new THREE.Vector3().copy(sw.userData.tip)).sub(base).normalize();
+    const want = new THREE.Vector3().copy(fwd).multiplyScalar(-0.75).add(_c5.set(0, -0.6, 0)).addScaledVector(left, s * 0.25).normalize();
+    const ax = new THREE.Vector3().crossVectors(cur, want), sn = ax.length(); if (sn < 1e-4) continue;
+    rotateBoneWorld(hb, ax.divideScalar(sn), Math.atan2(sn, cur.dot(want)) * w); hb.updateMatrixWorld(true);
+  }
+}
+
+// ---- rage Q · Burning Cross: the blades cross before his chest and are torn apart - two crescents of fire fly out, an X
+const CMX_VS = 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
+const CMX_FS = FX2_RAMP + /* glsl */`
+  uniform sampler2D uNoise; uniform vec3 uE, uM, uC; uniform float uA, uTime, uInt, uSeed; varying vec2 vUv;
+  void main() {
+    float along = vUv.x, across = clamp(vUv.y, 0.0, 1.0);   // across: 0 the trailing (inner) edge .. 1 the leading edge
+    float tips = smoothstep(0.0, 0.2, along) * smoothstep(1.0, 0.8, along);
+    float n = texture2D(uNoise, vec2(along * 2.4 + uSeed, across * 0.7 + uTime * 2.2)).r;
+    float n2 = texture2D(uNoise, vec2(along * 6.0 - uSeed, across * 1.8 + uTime * 3.4)).g;
+    float edge = smoothstep(0.62, 0.95, across) * smoothstep(1.0, 0.95, across);
+    float flames = smoothstep(0.35 + 0.55 * (1.0 - across), 1.05, n * 0.85 + n2 * 0.4) * smoothstep(0.0, 0.45, across);
+    float h = clamp(edge * 0.9 + flames * 0.5, 0.0, 1.0);
+    float a = (edge * 1.15 + flames * 0.85) * tips * uA;
+    gl_FragColor = vec4(ramp3(uE, uM, uC, h * 0.72) * a * uInt, 0.0);
+  }`;
+function cmCrescentGeo() {
+  const segs = 36, pos = [], uv = [], idx = [], { r0, r1, arc } = CM_CROSS;
+  for (let i = 0; i <= segs; i++) {
+    const u = i / segs, a = -arc + 2 * arc * u;
+    for (let j = 0; j < 2; j++) { const r = j ? r1 : r0; pos.push(Math.sin(a) * r, 0, Math.cos(a) * r - r1); uv.push(u, j); }
+    if (i < segs) { const b = i * 2; idx.push(b, b + 1, b + 2, b + 1, b + 3, b + 2); }
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx);
+  return g;
+}
+function castBurningCross() {
+  if (CM.form !== 'rage' || !CM.rage) return;
+  spend('bx'); startCd('bx');
+  Game.anim.play('cross', { noFx: true });
+  const real = (ct) => cmRageReal('cross', ct);
+  CM.act = { id: 'bx', t: 0, end: real(1.7), yaw: P.yaw };
+  Sound.god('sword_swing2', { gain: 1.0, rate: 0.85, delay: Math.max(0, real(0.85) - 0.16), noDuck: true });   // the blades cross
+  Sound.god('mine_arm', { gain: 1.25, delay: Math.max(0, real(1.25) - 0.08), noDuck: true });               // and tear apart: the fire waves
+  Sound.voice('f_cry', { chance: 0.75, cooldown: 1.0, priority: 3, delay: real(0.95) });
+  VFX.later(real(1.02), () => {   // the crossed blades flare white-hot
+    if (CM.form !== 'rage') return;
+    const at = P.pos.clone().addScaledVector(fwdOf(P.yaw, _c1), 1.6).setY(2.6);
+    FX2.burst(at, 'cfire', { size: 0.8, sparks: 30, embers: 14, puffs: 1, bursts: 1, int: 0.8, light: true, distort: true });
+    if (CM.rage) CM.rage.flare = 1;
+  });
+  VFX.later(real(1.25), () => cmCrossLaunch());
+}
+function cmCrossLaunch() {
+  if (CM.form !== 'rage') return;
+  const dir = fwdOf(P.yaw, new THREE.Vector3()), yaw = P.yaw, origin = P.pos.clone().addScaledVector(dir, 1.2);
+  Game.hitStop(0.06, 0.1); Cam.shake = Math.max(Cam.shake, 0.6); Cam.fovKick = 7;
+  FX2.burst(origin.clone().setY(2.2), 'cfire', { size: 1.1, sparks: 40, embers: 20, puffs: 3, bursts: 1, int: 0.75, light: true, distort: true });
+  FX2.distort.ring(origin.clone().setY(1.8), 10, 0.03, 0.5);
+  const geo = cmCrescentGeo(), P2 = FX2.pal('cfire'), dmg = cmDmg('bx');
+  for (const s of [-1, 1]) {
+    const mat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide, blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor,
+      uniforms: { ...fx2PalUniforms(P2), uNoise: { value: FX2.tex.noise }, uA: { value: 0 }, uTime: { value: 0 }, uInt: { value: 1.45 }, uSeed: { value: Math.random() } },
+      vertexShader: CMX_VS, fragmentShader: CMX_FS });
+    const m = new THREE.Mesh(geo, mat); m.renderOrder = 11; m.frustumCulled = false;
+    m.rotation.set(0, yaw, s * CM_CROSS.roll, 'YXZ'); scene.add(m);
+    CM.waves.push({ m, mat, geo: s > 0 ? geo : null, s: 0, origin, dir, yaw, roll: s * CM_CROSS.roll, hit: new Set(), dmg, scorchAcc: 0, side: s });
+  }
+}
+function cmUpdateWaves(dt, t) {
+  for (const W of CM.waves) {
+    const s0 = W.s; W.s += CM_CROSS.speed * dt;
+    const range = AB.bx.range * SU, k = W.s / range;
+    W.m.position.copy(W.origin).addScaledVector(W.dir, W.s + CM_CROSS.r1).setY(CM_CROSS.y);
+    W.mat.uniforms.uTime.value = t; W.mat.uniforms.uA.value = Math.min(1, W.s / 1.2) * (1 - smoothstep(0.8, 1, k));
+    // fire shed from the crescent as it flies, and a burning scar on the floor under its crossing
+    for (let i = 0; i < 3; i++) {
+      const a = rand(-CM_CROSS.arc, CM_CROSS.arc) * 0.9, r = rand(CM_CROSS.r0, CM_CROSS.r1);
+      const p = W.m.localToWorld(_c2.set(Math.sin(a) * r, 0, Math.cos(a) * r - CM_CROSS.r1));
+      if (Math.random() < 0.55) FX2.fire.spawn({ pos: p, vel: _c3.copy(W.dir).multiplyScalar(rand(2, 6)).add(_c4.set(rand(-0.4, 0.4), rand(0.4, 1.2), rand(-0.4, 0.4))).clone(), life: rand(0.2, 0.35), size: rand(0.4, 0.7), sizeEnd: 0.08, frames: 16, pal: 'cfire', temp: 1.0, tempEnd: 0.35, int: 1.2 });
+      else FX2.glow.spawn({ pos: p, vel: V3(rand(-1, 1), rand(0.5, 2), rand(-1, 1)), life: rand(0.4, 0.8), size: rand(0.05, 0.1), sizeEnd: 0.01, cell: FXA.ember, pal: 'cfire', temp: 1.15, tempEnd: 0.5, int: 2, drag: 1, turb: 2 });
+    }
+    if (W.side > 0) {
+      W.scorchAcc += W.s - s0;
+      while (W.scorchAcc > 1.6) { W.scorchAcc -= 1.6; const g = W.origin.clone().addScaledVector(W.dir, W.s + CM_CROSS.r1 * 0.2).setY(0); FX2.scorch(g, 'cfire', { radius: 1.0, dur: 2.2, int: 1.4 }); }
+    }
+    // each crescent hits once (in the middle, where they cross, a target takes both)
+    for (const d of Combat.dummies) {
+      if (!d.alive || W.hit.has(d)) continue;
+      const rx = d.pos.x - W.origin.x, rz = d.pos.z - W.origin.z, along = rx * W.dir.x + rz * W.dir.z, lat = Math.abs(rx * W.dir.z - rz * W.dir.x);
+      if (along > s0 - 0.6 && along < W.s + CM_CROSS.r1 * 0.4 && lat < CM_CROSS.half + d.radius) {
+        W.hit.add(d);
+        Combat.deal(d, W.dmg, 'ability', 'Burning Cross');
+        cmBurningHit(d, 0.75);
+        if (d.bleed) d.bleed(W.dmg * 0.12, 2, 'Burning Cross');
+      }
+    }
+    if (k >= 1) { W.dead = true; FX2.burst(W.m.position.clone(), 'cfire', { size: 0.6, sparks: 14, embers: 8, puffs: 1, bursts: 1, light: false, distort: false }); }
+  }
+  for (const W of CM.waves) if (W.dead) { cmDrop(W.m); W.mat.dispose(); if (W.geo) W.geo.dispose(); }
+  CM.waves = CM.waves.filter((W) => !W.dead);
+}
+
+// ---- rage E · Molten Charge: he charges, dragging both burning swords through the floor, and ends in a rising slash
+function castMoltenCharge() {
+  if (CM.form !== 'rage' || !CM.rage) return;
+  spend('mh'); startCd('mh');
+  const dir = fwdOf(P.yaw, new THREE.Vector3());
+  CM.act = { id: 'mh', t: 0, phase: 'run', dir, yaw: P.yaw, from: P.pos.clone(), hit: new Set(), trenchAcc: 0, end: 9, upStart: 0, upAt: 0, upDone: false };
+  Sound.god('rage_transform', { gain: 0.55, rate: 1.35, noDuck: true });
+  Sound.god('mine_arm', { gain: 1.0, rate: 0.72, noDuck: true });
+  Sound.voice('f_cry', { chance: 0.85, priority: 3, cooldown: 0.5 });
+  CM.act.loop = Sound.god('fire_loop', { gain: 0.8, loop: true, rate: 1.5 });
+  FX2.burst(P.pos.clone().setY(1.2), 'cfire', { size: 0.9, sparks: 24, embers: 12, puffs: 3, bursts: 1, int: 0.6, light: true, distort: true });
+  cmDust(P.pos, 6, 1.2);
+  if (CM.rage) CM.rage.flare = 1;
+}
+function cmUpdateCharge(A, dt) {
+  if (A.phase === 'run') {
+    const sp = CM_CHARGE.dist / CM_CHARGE.dur, before = _c5.copy(P.pos);
+    P.vel.set(A.dir.x * sp, 0, A.dir.z * sp);
+    P.pos.addScaledVector(A.dir, sp * dt); resolveCircle(P.pos, 0.45);
+    const moved = P.pos.distanceTo(before);
+    Cam.shake = Math.max(Cam.shake, 0.28);
+    // the burning trench: both blades carve the floor behind him
+    A.trenchAcc += moved;
+    const side = rightOf(A.yaw, _c3);
+    while (A.trenchAcc > 0.6) {
+      A.trenchAcc -= 0.6;
+      for (const s of [-1, 1]) {
+        const g = P.pos.clone().addScaledVector(A.dir, -1.3 - A.trenchAcc).addScaledVector(side, s * 1.15).setY(0);
+        FX2.scorch(g, 'cfire', { radius: 0.62, dur: CM_CHARGE.trench + 1.6, int: 1.9, dark: new THREE.Color(0.12, 0.04, 0.015), darkAlpha: 0.85 });
+        for (let i = 0; i < 3; i++) FX2.glow.spawn({ pos: g.clone().setY(0.1), vel: V3(rand(-1.5, 1.5) - A.dir.x * 3, rand(2, 5), rand(-1.5, 1.5) - A.dir.z * 3), life: rand(0.3, 0.6), size: rand(0.05, 0.09), sizeEnd: 0.01, cell: FXA.spark, stretch: 2.5, pal: 'cfire', temp: 1.2, tempEnd: 0.5, int: 2.2, gravity: -9 });
+        FX2.fire.spawn({ pos: g.clone().setY(0.25), vel: V3(0, rand(1.2, 2.4), 0), life: rand(0.3, 0.5), size: rand(0.5, 0.8), sizeEnd: 0.1, frames: 16, pal: 'cfire', temp: 1.0, tempEnd: 0.4, int: 1.2 });
+        CM.trench.push({ p: g, t: CM_CHARGE.trench, burn: cmDmg('mh', 'burn', 'burnScale') });
+      }
+      cmCrumbs(P.pos.clone().setY(0.2), 2, 0.6, 0.6);
+    }
+    // everything in his way: hit once, burned, thrown aside
+    for (const d of Combat.dummies) {
+      if (!d.alive || A.hit.has(d)) continue;
+      const dx = d.pos.x - P.pos.x, dz = d.pos.z - P.pos.z;
+      if (Math.hypot(dx, dz) < CM_CHARGE.width + d.radius) {
+        A.hit.add(d);
+        Combat.deal(d, cmDmg('mh'), 'ability', 'Molten Charge');
+        cmBurningHit(d, 0.75);
+        const lat = dx * A.dir.z - dz * A.dir.x;
+        d.shove(_c4.set(A.dir.z, 0, -A.dir.x).multiplyScalar(lat >= 0 ? 2.3 : -2.3).addScaledVector(A.dir, 1.2), 1.4);
+        Game.hitStop(0.04, 0.2);
+      }
+    }
+    if (A.t >= CM_CHARGE.dur || (A.t > 0.08 && moved < sp * dt * 0.2)) cmChargeUp(A);
+  } else if (!A.upDone && A.t >= A.upAt) cmChargeHit(A);
+}
+function cmChargeUp(A) {   // the end of the charge: the rising slash (the spinning upward slash clip)
+  A.phase = 'up'; A.upStart = A.t; P.vel.set(0, 0, 0);
+  Game.anim.play('ss', { noFx: true, speed: 1.25 });
+  const real = (ct) => cmRageReal('ss', ct) / 1.25;
+  A.upAt = A.t + real(1.07); A.end = A.t + real(1.95);
+  if (A.loop) { A.loop.stop(0.4); A.loop = null; }
+  Sound.god('sword_swing3', { gain: 1.15, rate: 0.82, delay: Math.max(0, real(1.07) - 0.18), noDuck: true });
+  Sound.voice('f_slam', { priority: 4, gain: 1.1, cooldown: 0, delay: Math.max(0, real(1.07) - 0.4) });
+}
+function cmChargeHit(A) {
+  A.upDone = true;
+  const c = P.pos.clone(), dir = A.dir, at = c.clone().addScaledVector(dir, 2.2);
+  Game.hitStop(0.12, 0.06); Cam.shake = Math.max(Cam.shake, 0.85); Cam.fovKick = 9;
+  Sound.god('mine_boom', { gain: 0.9, rate: 0.95, pos: at, noDuck: true });
+  FX2.slash(at.clone().setY(2.4), A.yaw, 'cfire', { r0: 1.6, r1: 3.8, a0: -1.7, a1: 1.7, roll: -Math.PI / 2, dur: 0.38, int: 2.0 });
+  FX2.burst(at.clone().setY(1.2), 'cfire', { size: 1.3, sparks: 50, embers: 26, puffs: 4, bursts: 2, int: 0.8, light: true, distort: true });
+  FX2.ring(at.clone().setY(0), 'cfire', { radius: CM_CHARGE.upR + 2, dur: 0.5, width: 0.08, int: 1.2 });
+  for (let i = 0; i < 30; i++) FX2.glow.spawn({ pos: at.clone().setY(0.3).add(_c2.set(rand(-1.5, 1.5), 0, rand(-1.5, 1.5))), vel: V3(rand(-1, 1), rand(6, 12), rand(-1, 1)), life: rand(0.5, 0.9), size: rand(0.06, 0.12), sizeEnd: 0.01, cell: FXA.spark, stretch: 3, pal: 'cfire', temp: 1.2, tempEnd: 0.5, int: 2.2, gravity: -10, drag: 0.6 });
+  VFX.cracks(at.clone().setY(0), 3, 2.4, { grow: 0.1, intensity: 1.4, color: CMC.fire });
+  for (const d of dummiesInCone(c, dir, CM_CHARGE.upR, 1.25)) { Combat.deal(d, cmDmg('mh', 'up', 'upScale'), 'ability', 'Molten Charge'); cmKnockUp(d, 0.8, 1.7); cmBurningHit(d, 0.9); }
+  if (CM.rage) { CM.rage.flare = 1; CM.rage.thud = 1; }
+}
+function cmUpdateTrench(dt) {
+  if (!CM.trench.length) return;
+  CM.trenchT -= dt; const tick = CM.trenchT <= 0; if (tick) CM.trenchT = 0.5;
+  for (const S of CM.trench) { S.t -= dt; if (Math.random() < dt * 4) FX2.fire.spawn({ pos: _c2.set(S.p.x + rand(-0.2, 0.2), 0.15, S.p.z + rand(-0.2, 0.2)), vel: V3(0, rand(1, 2), 0), life: rand(0.25, 0.45), size: rand(0.3, 0.55), sizeEnd: 0.06, frames: 16, pal: 'cfire', temp: 1.0, tempEnd: 0.4, int: 1.2 }); }
+  CM.trench = CM.trench.filter((S) => S.t > 0);
+  if (!tick) return;
+  for (const d of Combat.dummies) {
+    if (!d.alive) continue;
+    const S = CM.trench.find((s) => Math.hypot(d.pos.x - s.p.x, d.pos.z - s.p.z) < 0.85 + d.radius);
+    if (S) Combat.deal(d, S.burn * 0.5, 'dot', 'Molten Charge');
+  }
+}
+
+// ---- rage R · Skyfall: a leap into the sky, both swords crash down - a crater of molten cookie and a shockwave
+function castSkyfall() {
+  if (CM.form !== 'rage' || !CM.rage) return;
+  spend('sk'); startCd('sk');
+  const to = groundTarget(AB.sk.range * SU, 3);
+  Game.anim.play('sky', { noFx: true });
+  CM.act = { id: 'sk', t: 0, from: P.pos.clone(), to: to.clone(), yaw: P.yaw, landed: false, end: CM_SKY.land + 0.55 };
+  Sound.god('stomp', { gain: 1.0, rate: 0.8, delay: Math.max(0, CM_SKY.up - 0.05) });
+  Sound.god('mine_arm', { gain: 1.1, rate: 0.62, delay: Math.max(0, CM_SKY.land - 0.5), noDuck: true });
+  Sound.voice('f_slam', { priority: 4, gain: 1.15, cooldown: 0, delay: Math.max(0, CM_SKY.land - 0.55) });
+  // where he will land: a ring of embers closing in on the spot
+  FX2.scorch(to, 'cfire', { radius: CM_SKY.radius * 0.5, dur: CM_SKY.land + 0.2, int: 0.6, darkAlpha: 0.2 });
+  if (CM.rage) CM.rage.flare = 1;
+}
+function cmUpdateSky(A, dt) {
+  const T = A.t;
+  if (T >= CM_SKY.up && !A.landed) {
+    const k = clamp((T - CM_SKY.up) / (CM_SKY.land - CM_SKY.up), 0, 1);
+    if (!A.off) { A.off = true; cmDust(A.from, 10, 1.6); FX2.ring(A.from.clone().setY(0), 'cookie', { radius: 4, dur: 0.4, width: 0.06 }); Cam.shake = Math.max(Cam.shake, 0.5); }
+    P.pos.lerpVectors(A.from, A.to, smoothstep(0, 1, k));
+    P.y = CM_SKY.h * Math.sin(Math.PI * Math.pow(k, 0.72)); P.vy = 0; P.flying = true; P.grounded = false;
+    // the blades leave ribbons of fire through the sky; embers rain off him on the way down
+    if (Math.random() < dt * 40) FX2.glow.spawn({ pos: _c2.set(P.pos.x + rand(-1, 1), P.y + rand(1, 4), P.pos.z + rand(-1, 1)), vel: V3(rand(-1, 1), rand(-1, 1), rand(-1, 1)), life: rand(0.4, 0.8), size: rand(0.05, 0.1), sizeEnd: 0.01, cell: FXA.ember, pal: 'cfire', temp: 1.1, tempEnd: 0.5, int: 1.9, gravity: -4 });
+    if (k > 0.55 && Math.random() < dt * 30) FX2.fire.spawn({ pos: _c2.set(P.pos.x, P.y + 2.5, P.pos.z), vel: V3(0, 3, 0), life: 0.3, size: rand(0.8, 1.3), sizeEnd: 0.2, frames: 16, pal: 'cfire', temp: 1.0, tempEnd: 0.4, int: 1.2 });
+  }
+  if (!A.landed && T >= CM_SKY.land) { A.landed = true; P.pos.copy(A.to); P.y = 0; P.vy = 0; P.flying = false; P.grounded = true; cmSkyImpact(A); }
+}
+function cmSkyImpact(A) {
+  const c = P.pos.clone().setY(0), R = CM_SKY.radius;
+  Sound.god('mine_boom', { gain: 1.35, rate: 0.68, pos: c, noDuck: true }); Sound.god('stomp', { gain: 1.2, rate: 0.65 }); Sound.god('mine_place', { gain: 0.8, rate: 0.8, pos: c });
+  Game.hitStop(0.16, 0.05); Cam.shake = Math.max(Cam.shake, 1.15); Cam.fovKick = 12;
+  PostFX.shock(c.clone().setY(0.6), 1.3, 0.9); PostFX.aberr = Math.max(PostFX.aberr, 0.003);
+  FX2.impact(c, 'cfire', { size: 2.2, ring: R / 2.2 + 1, sparks: 80, debris: 24, dustPal: 'choco', dustGlow: 0.2, int: 0.9, glowRocks: true, scorchDur: 5 });
+  FX2.ring(c, 'cfire', { radius: R + 4, dur: 0.7, width: 0.09, int: 1.2 });
+  VFX.later(0.1, () => FX2.ring(c, 'cookie', { radius: R + 9, dur: 1.0, width: 0.05 }));
+  FX2.distort.ring(c.clone().setY(1), 30, 0.045, 0.8);
+  VFX.cracks(c, R * 0.95, 4, { grow: 0.15, intensity: 1.6, color: CMC.fire });
+  cmChips(c.clone().setY(0.5), 40, 1.8); cmCrumbs(c.clone().setY(0.6), 60, 1.8, 1.3);
+  for (let i = 0; i < 44; i++) { const a = rand(0, TAU), sp = rand(6, 12); FX2.fire.spawn({ pos: V3(c.x + Math.cos(a) * 0.8, rand(0.2, 0.8), c.z + Math.sin(a) * 0.8), vel: V3(Math.cos(a) * sp, rand(0.3, 2), Math.sin(a) * sp), life: rand(0.35, 0.6), size: rand(0.6, 1.0), sizeEnd: 0.15, frames: 16, pal: 'cfire', temp: 1, tempEnd: 0.3, int: 1.2, drag: 2.6 }); }
+  cmPool(c, CM_SKY.crater, 3.2, { hot: 1, burn: cmDmg('sk', 'burn', 'burnScale'), crumbs: false, slow: 0.25, src: 'Skyfall' });   // the crater of molten cookie
+  for (const d of dummiesNear(c, R)) { Combat.deal(d, cmDmg('sk'), 'ability', 'Skyfall'); cmKnockUp(d, CM_SKY.lift, 1.4); cmBurningHit(d, 0.95); }
+  if (CM.rage) { CM.rage.flare = 1; CM.rage.thud = 1; }
+}
+
 // A ribbon of fire that follows a blade: every frame the blade (from part-way up to the tip) is sampled in world space; the
 // strip between samples is a Catmull-Rom spline subdivided by how far the tip travelled, so a fast swing still draws a smooth
 // arc (no facets). Additive, a fire ramp: white-hot at the fresh tip edge, orange, then deep red as it ages and fades. Samples
@@ -690,10 +1304,10 @@ function cmPickerChoose(i) {
   const K = CM.pick; if (!K) return;
   const d = K.list[i]; cmPickerClose();
   if (!d || !d.alive) { HUD.warn('The target is gone'); return; }
-  if (!canCast('ch')) return;
-  spend('ch'); startCd('ch');
+  if (!canCast('hr')) return;
+  spend('hr'); startCd('hr');
   cmHorrorStart(d);
-  Net.cast('K', 'ch', Net.idOf(d));   // (online: every page plays it around the victim, and a human victim lives it on its own screen)
+  Net.cast('K', 'hr', Net.idOf(d));   // (online: every page plays it around the victim, and a human victim lives it on its own screen)
 }
 const cmEsc = (s) => String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 function cmPickerInput() {
@@ -704,72 +1318,213 @@ function cmPickerInput() {
   if (input.lmbPressed) { cmPickerChoose(K.sel); return; }
   if (input.rmbPressed || input.pressed.has('Escape')) { cmPickerClose(); Sound.cancel(); }
 }
-// The victim's screen: the overlay that plays the snow, the glitch, the screamer and the silence. Runs on the LOCAL
-// screen; in single player / Arena the caster watches it as a cinematic (the camera also cuts to the victim's POV).
+// The victim: its god (the voice lines name it: g_coming_<god>, g_name_<god>) and the name its screen screams - a human
+// victim's own nickname online, else its god's name
+function cmVictimInfo(H) {
+  const d = H.d;
+  let god = null, name = '';
+  if (H.self) {
+    god = Net.bare(() => Kit && Kit.id);
+    name = (Net.online && Net.st && typeof netName === 'function' && netName(Net.st.n)) || (GODS[god] ? GODS[god].name : 'YOU');
+  } else {
+    god = d.god || null;
+    name = d.isRemotePlayer ? d.nick : GODS[d.god] ? GODS[d.god].name : d.name;
+  }
+  return { god: GODS[god] ? god : null, name: String(name || 'YOU').toUpperCase().slice(0, 18) };
+}
+// a voice line for this victim: its god's own take, else the generic one, else the older line
+function cmHVoiceFor(H, base, fallback, o) {
+  for (const k of [H.vg ? `${base}_${H.vg}` : null, `${base}_any`, fallback]) if (k && cmHVoice(H, k, o)) return true;
+  return false;
+}
+// The victim's screen: the creeping dark, the glitch, the SCREAMER with its name, the black silence. Runs on the LOCAL
+// screen; in single player / Arena the caster watches it as a cinematic (the camera cuts to the victim's POV).
 function cmScreamImg() {
   if (!CM.screamImg) { const im = new Image(); im.decoding = 'async'; im.src = 'assets/fx/cookie_screamer.webp'; CM.screamImg = im; }
   return CM.screamImg;
 }
-function cookieHorrorScreen(target, o = {}) {
+function cookieHorrorScreen(H) {
   const el = document.createElement('div');
   el.style.cssText = 'position:fixed;inset:0;z-index:55;pointer-events:none;overflow:hidden';
   const cv = document.createElement('canvas'); cv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%';
-  el.appendChild(cv); document.body.appendChild(el);
+  const nm = document.createElement('div');
+  nm.textContent = H.name;
+  nm.style.cssText = "position:absolute;left:0;right:0;top:66%;text-align:center;font:900 clamp(44px,12.5vw,210px)/1 Impact,'Arial Black','Haettenschweiler',sans-serif;color:#ff1e06;letter-spacing:.05em;-webkit-text-stroke:3px #160000;text-shadow:0 0 22px #ff2400,0 0 70px #9a0000,0 8px 0 #1a0000;opacity:0;white-space:nowrap;will-change:transform";
+  nm.style.fontSize = Math.round(Math.min(innerWidth * 0.125, 210, (innerWidth * 1.45) / Math.max(6, H.name.length))) + 'px';   // (a long name still fits the screen)
+  el.appendChild(cv); el.appendChild(nm); document.body.appendChild(el);
   const img = cmScreamImg();
-  const flakes = Array.from({ length: 140 }, () => ({ x: Math.random(), y: Math.random() * -1, v: rand(0.06, 0.18), s: rand(2, 7), r: rand(0, TAU), w: rand(-1.5, 1.5), c: Math.random() < 0.7 ? [196, 128, 58] : [72, 34, 12] }));
-  const S = { t: 0, el, cv, ctx: cv.getContext('2d'), flakes, done: false, glitchT: 0, slices: [] };
+  const S = { t: 0, el, cv, nm, ctx: cv.getContext('2d'), done: false, glitchT: 0, slices: [] };
   S.update = (dt) => {
     S.t += dt;
-    const W = cv.width = Math.round(innerWidth * 0.5), H = cv.height = Math.round(innerHeight * 0.5), g = S.ctx, t = S.t;
-    g.clearRect(0, 0, W, H);
-    // 1. cookie crumbs falling like snow down the screen (and a dark, creeping vignette)
-    const vig = smoothstep(0, 1.2, t) * (t < CM_HORROR.scream ? 1 : 0);
-    if (vig > 0) { const gr = g.createRadialGradient(W / 2, H / 2, H * 0.25, W / 2, H / 2, H * 0.85); gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, `rgba(20,2,0,${0.75 * vig})`); g.fillStyle = gr; g.fillRect(0, 0, W, H); }
-    if (t < CM_HORROR.scream) for (const f of S.flakes) {
-      f.y += f.v * dt; f.x += Math.sin(t * 1.3 + f.r) * 0.01 * dt; f.r += f.w * dt;
-      if (f.y > 1.05) { f.y = -0.05; f.x = Math.random(); }
-      if (f.y < 0) continue;
-      g.save(); g.translate(f.x * W, f.y * H); g.rotate(f.r); g.fillStyle = `rgba(${f.c[0]},${f.c[1]},${f.c[2]},${0.85 * smoothstep(0, 0.6, t)})`;
-      g.beginPath(); g.moveTo(-f.s, -f.s * 0.6); g.lineTo(f.s * 0.8, -f.s * 0.8); g.lineTo(f.s, f.s * 0.5); g.lineTo(-f.s * 0.5, f.s); g.closePath(); g.fill(); g.restore();
-    }
-    // 2. the glitch: the screamer bleeds through in torn, offset horizontal slices (RGB-split via the post pass);
-    //    slices change ~10x a second but the overall brightness only rises - no full-screen flashes
+    const W = cv.width = Math.round(innerWidth * 0.5), Hh = cv.height = Math.round(innerHeight * 0.5), g = S.ctx, t = S.t;
+    g.clearRect(0, 0, W, Hh);
+    // 1. the dark creeps in from the edges while the cookies rain and the music crawls
+    const vig = smoothstep(0, 3.2, t) * (t < CM_HORROR.scream ? 1 : 0);
+    if (vig > 0) { const gr = g.createRadialGradient(W / 2, Hh / 2, Hh * (0.42 - 0.18 * vig), W / 2, Hh / 2, Hh * 0.9); gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, `rgba(16,1,0,${0.85 * vig})`); g.fillStyle = gr; g.fillRect(0, 0, W, Hh); }
+    // 2. the glitch: the face bleeds through in torn, offset slices (they change ~10x a second but only ever dimly:
+    //    no full-screen flashes)
     if (t >= CM_HORROR.glitch && t < CM_HORROR.scream && img.complete && img.naturalWidth) {
       const k = (t - CM_HORROR.glitch) / (CM_HORROR.scream - CM_HORROR.glitch);
       S.glitchT -= dt;
-      if (S.glitchT <= 0) { S.glitchT = 0.1; S.slices = Array.from({ length: 6 + Math.round(10 * k) }, () => ({ y: Math.random(), h: rand(0.01, 0.07), dx: rand(-0.08, 0.08), a: rand(0.25, 0.6) * (0.3 + k) })); }
-      const iw = img.naturalWidth, ih = img.naturalHeight, sz = Math.max(W, H);
-      for (const s of S.slices) { g.globalAlpha = Math.min(0.9, s.a); g.drawImage(img, 0, s.y * ih, iw, s.h * ih, (W - sz) / 2 + s.dx * W, (H - sz) / 2 + s.y * sz, sz, s.h * sz); }
+      if (S.glitchT <= 0) { S.glitchT = 0.1; S.slices = Array.from({ length: 5 + Math.round(9 * k) }, () => ({ y: Math.random(), h: rand(0.01, 0.06), dx: rand(-0.08, 0.08), a: rand(0.2, 0.5) * (0.3 + k) })); }
+      const iw = img.naturalWidth, ih = img.naturalHeight, sz = Math.max(W, Hh);
+      for (const s of S.slices) { g.globalAlpha = Math.min(0.75, s.a); g.drawImage(img, 0, s.y * ih, iw, s.h * ih, (W - sz) / 2 + s.dx * W, (Hh - sz) / 2 + s.y * sz, sz, s.h * sz); }
       g.globalAlpha = 1;
       cmMyView(() => { PostFX.aberr = Math.max(PostFX.aberr, 0.004 + 0.012 * k); });   // (the victim's own screen, online: Net.bare)
     }
-    // 3. the SCREAMER: the cookie face fills the screen, lunging closer, shaking
-    if (t >= CM_HORROR.scream && t < CM_HORROR.silence && img.complete && img.naturalWidth) {
-      const k = (t - CM_HORROR.scream) / (CM_HORROR.silence - CM_HORROR.scream), sz = Math.max(W, H) * (1.05 + 0.25 * easeOutCubic(Math.min(1, k * 3))), sh = 6 * (1 - k * 0.5);
-      g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
-      g.drawImage(img, (W - sz) / 2 + rand(-sh, sh), (H - sz) / 2 + rand(-sh, sh), sz, sz);
-      if (k < 0.4) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.25; g.drawImage(img, (W - sz) / 2 + 8, (H - sz) / 2, sz, sz); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }   // a red/orange ghost offset
-    }
+    // 3. the SCREAMER: the face LUNGES out of the dark into the screen (one sudden cut, then it holds, shaking) and
+    //    screams the name; the name slams in under it in huge letters
+    const live = t >= CM_HORROR.scream && t < CM_HORROR.silence;
+    if (live && img.complete && img.naturalWidth) {
+      const k = (t - CM_HORROR.scream) / (CM_HORROR.silence - CM_HORROR.scream), lunge = easeOutBack(Math.min(1, k * 7));
+      // (the face fills the screen with its burning eyes high and the screaming mouth around the name)
+      const sz = Math.max(W, Hh * 1.25) * (0.5 + 0.5 * lunge + 0.1 * k), sh = 7 * (1 - k * 0.6), x0 = (W - sz) / 2, y0 = Hh * 0.24 - sz * 0.25;
+      g.fillStyle = '#000'; g.fillRect(0, 0, W, Hh);
+      g.drawImage(img, x0 + rand(-sh, sh), y0 + rand(-sh, sh), sz, sz);
+      if (k < 0.35) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.18 * (1 - k / 0.35); g.drawImage(img, x0 + 9, y0, sz, sz); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
+      const kn = clamp((k - 0.04) / 0.08, 0, 1);
+      nm.style.opacity = String(kn);
+      nm.style.transform = `translate(${rand(-7, 7) * (1 - k * 0.5)}px,${rand(-5, 5) * (1 - k * 0.5)}px) scale(${1.35 - 0.35 * easeOutCubic(kn) + 0.08 * k})`;
+    } else nm.style.opacity = '0';
     // 4. the silence: black
-    if (t >= CM_HORROR.silence && t < CM_HORROR.tele + 0.1) { g.fillStyle = `rgba(0,0,0,${1 - smoothstep(CM_HORROR.tele - 0.05, CM_HORROR.tele + 0.1, t)})`; g.fillRect(0, 0, W, H); }
+    if (t >= CM_HORROR.silence && t < CM_HORROR.tele + 0.1) { g.fillStyle = `rgba(0,0,0,${1 - smoothstep(CM_HORROR.tele - 0.05, CM_HORROR.tele + 0.1, t)})`; g.fillRect(0, 0, W, Hh); }
     if (t > CM_HORROR.tele + 0.15) { S.done = true; el.remove(); }
   };
   S.dispose = () => { S.done = true; el.remove(); };
   return S;
 }
+// ---- the cookie rain: REAL cookies (the cookie model's low-poly LOD, one InstancedMesh), of all sizes, tumbling out of
+// the dark sky, bouncing, cracking into crumbs, piling up around the victim; the clap's blast throws the pile away
+let _cmLod = null;
+function cmFloatGeo(src) {   // (the glTF's quantized attributes, as plain floats: the geometry is transformed below)
+  const g = new THREE.BufferGeometry();
+  for (const k of ['position', 'normal', 'uv']) {
+    const a = src.attributes[k]; if (!a) continue;
+    const n = a.count, s = a.itemSize, arr = new Float32Array(n * s);
+    for (let i = 0; i < n; i++) { arr[i * s] = a.getX(i); if (s > 1) arr[i * s + 1] = a.getY(i); if (s > 2) arr[i * s + 2] = a.getZ(i); }
+    g.setAttribute(k, new THREE.BufferAttribute(arr, s));
+  }
+  if (src.index) g.setIndex(new THREE.BufferAttribute(new Uint32Array(src.index.array), 1));
+  return g;
+}
+function cmCookieLod() {
+  if (_cmLod) return _cmLod;
+  const src = Assets.glb.cookie_prop, sc = src && src.scenes && (src.scenes[1] || src.scenes[0]);
+  let geo = null, mat = null;
+  if (sc) { sc.updateMatrixWorld(true); sc.traverse((o) => { if (o.isMesh && !geo) { geo = cmFloatGeo(o.geometry).applyMatrix4(o.matrixWorld); mat = o.material; } }); }
+  if (!geo) {
+    const pts = [[0, -0.08], [0.45, -0.08], [0.5, -0.03], [0.5, 0.03], [0.45, 0.08], [0, 0.09]].map(([x, y]) => new THREE.Vector2(x, y));
+    geo = new THREE.LatheGeometry(pts, 24); mat = new THREE.MeshStandardMaterial({ map: cookieCrustTexture(), roughness: 0.85 });
+  } else {
+    geo.computeBoundingBox();
+    const b = geo.boundingBox, sz = b.getSize(new THREE.Vector3()), ctr = b.getCenter(new THREE.Vector3());
+    geo.translate(-ctr.x, -ctr.y, -ctr.z);
+    if (sz.x <= sz.y && sz.x <= sz.z) geo.rotateZ(Math.PI / 2); else if (sz.z <= sz.y && sz.z <= sz.x) geo.rotateX(Math.PI / 2);   // (its thin axis up: flat)
+    geo.computeBoundingBox(); const s2 = geo.boundingBox.getSize(new THREE.Vector3());
+    const k = 1 / Math.max(s2.x, s2.z); geo.scale(k, k, k);
+    mat = mat.clone(); mat.envMapIntensity = 1.2;
+  }
+  geo.computeBoundingBox();
+  _cmLod = { geo, mat, half: geo.boundingBox.max.y };
+  return _cmLod;
+}
+function cmRainStart(H) {
+  const L = cmCookieLod(), N = 150;
+  const mesh = new THREE.InstancedMesh(L.geo, L.mat, N);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.castShadow = true; mesh.receiveShadow = true; mesh.count = 0;
+  scene.add(mesh);
+  H.rain = { mesh, items: [], acc: 0, N, thudT: 0 };
+}
+function cmRainSpawn(H, R, cx, cz) {
+  let it = null;
+  if (R.items.length >= R.N) { it = R.items.find((x) => x.rest) || R.items[0]; cmRainCrack(it); }
+  else { it = {}; R.items.push(it); }
+  const a = rand(0, TAU), r = 6 * Math.sqrt(Math.random()), big = Math.random() < 0.2;
+  Object.assign(it, { p: new THREE.Vector3(cx + Math.cos(a) * r, rand(8, 14), cz + Math.sin(a) * r), v: new THREE.Vector3(rand(-0.6, 0.6), -rand(3, 6), rand(-0.6, 0.6)),
+    q: new THREE.Quaternion().setFromEuler(_cE.set(rand(0, TAU), rand(0, TAU), rand(0, TAU))), w: new THREE.Vector3(rand(-7, 7), rand(-3, 3), rand(-7, 7)),
+    s: big ? rand(0.85, 1.35) : rand(0.3, 0.65), bounce: 0, rest: false, dead: false, rq: new THREE.Quaternion().setFromEuler(_cE.set(rand(-0.12, 0.12), rand(0, TAU), rand(-0.12, 0.12))) });
+}
+function cmRainCrack(it) {   // a cookie breaks apart into crumbs and chunks
+  if (!it || it.dead) return;
+  it.dead = true;
+  cmCrumbs(it.p, Math.round(6 + it.s * 14), 0.5 + it.s, 0.6); cmChips(it.p, Math.round(2 + it.s * 6), 0.4 + it.s * 0.6);
+}
+function cmRainTick(H, dt) {
+  const R = H.rain; if (!R) return;
+  const d = H.d, T = H.t, f = d.facing !== undefined ? fwdOf(d.facing, _c4) : _c4.set(0, 0, 0);
+  const cx = d.pos.x + f.x * 4.5, cz = d.pos.z + f.z * 4.5;   // centred in front of its eyes
+  const fk = Net.ctx ? Math.max(0.3, Net.ctx.fxK) : 1;
+  // a few big cookies first ... then a downpour (it stops at the scream; what lies there stays until the clap)
+  if (T >= CM_HORROR.rain && T < CM_HORROR.scream) R.acc += dt * lerp(9, 42, smoothstep(CM_HORROR.rain, CM_HORROR.glitch, T)) * fk;
+  while (R.acc >= 1) { R.acc--; cmRainSpawn(H, R, cx, cz); }
+  R.thudT -= dt;
+  const L = _cmLod, m = R.mesh;
+  let n = 0;
+  for (const it of R.items) {
+    if (it.dead) continue;
+    const half = it.s * L.half;
+    if (!it.rest) {
+      it.v.y -= 15 * dt; it.p.addScaledVector(it.v, dt);
+      _cQ.setFromEuler(_cE.set(it.w.x * dt, it.w.y * dt, it.w.z * dt)); it.q.multiply(_cQ);
+      if (it.p.y <= half + (it.pile || 0)) {
+        it.p.y = half + (it.pile || 0);
+        if (it.bounce === 0 && -it.v.y > 2.5) {
+          it.bounce = 1; it.v.y = -it.v.y * 0.3; it.v.x *= 0.5; it.v.z *= 0.5; it.w.multiplyScalar(0.4);
+          cmCrumbs(it.p, 2 + Math.round(it.s * 6), 0.4 + it.s * 0.5, 0.5);
+          if (R.thudT <= 0 && it.s > 0.3) { R.thudT = 0.12; cmHSfx(H, 'crunch', { gain: 0.22 + 0.3 * it.s, rate: rand(1.2, 1.6) }); }
+          if (Math.random() < 0.28 || it.blast) { cmRainCrack(it); continue; }
+        } else {
+          it.rest = true; it.v.set(0, 0, 0);
+          let k = 0; for (const o of R.items) if (o !== it && o.rest && !o.dead && Math.hypot(o.p.x - it.p.x, o.p.z - it.p.z) < (o.s + it.s) * 0.45) k++;
+          it.pile = Math.min(0.5, k * 0.06); it.p.y = half + it.pile;
+        }
+      }
+    } else it.q.slerp(it.rq, 1 - Math.exp(-12 * dt));
+    m.setMatrixAt(n++, _cM.compose(it.p, it.q, _cS.setScalar(it.s)));
+  }
+  m.count = n; m.instanceMatrix.needsUpdate = true;
+  if (R.items.length > 30 && R.items.some((x) => x.dead)) R.items = R.items.filter((x) => !x.dead);
+}
+// the clap's blast: the pile is thrown out in every direction; each cookie breaks where it comes down
+function cmRainBlast(H, c) {
+  const R = H.rain; if (!R) return;
+  for (const it of R.items) {
+    if (it.dead) continue;
+    const dx = it.p.x - c.x, dz = it.p.z - c.z, L = Math.hypot(dx, dz) || 1, k = 1 / (1 + L * 0.25);
+    it.rest = false; it.bounce = 0; it.blast = true; it.pile = 0;
+    it.v.set((dx / L) * rand(6, 12) * k, rand(3, 7) * k + 1, (dz / L) * rand(6, 12) * k); it.w.set(rand(-12, 12), rand(-6, 6), rand(-12, 12));
+  }
+}
+function cmRainEnd(H) {
+  const R = H.rain; if (!R) return;
+  H.rain = null;
+  for (const it of R.items) if (!it.dead && it.rest) cmCrumbs(it.p, 3, 0.4, 0.3);
+  cmDrop(R.mesh); R.mesh.dispose();
+}
+// the victim is CRUSHED between his hands: squeezed flat (sideways, along the clap), then it springs back
+function cmSquashTarget(H) {
+  if (H.self) return Net.bare(() => Game.thoth && Game.thoth.root);
+  return H.d.mesh || null;
+}
+function cmUpdateSquash(H) {
+  const S = H.squash; if (!S) return;
+  const k = H.t - CM_HORROR.boom, env = k < 0 ? 0 : k < 0.06 ? k / 0.06 : 1 - smoothstep(0.55, 1.05, k);
+  S.o.scale.set(S.s0.x * (1 - 0.58 * env), S.s0.y * (1 + 0.1 * env), S.s0.z * (1 + 0.22 * env));
+  if (k > 1.1) { S.o.scale.copy(S.s0); H.squash = null; }
+}
+// ---- Cookie Horror online (14n_net.js). The caster's page plays it as in single player (his cinematic, the real blow,
+// sent to the victim's owner). Every other page replays it in the caster's sandbox (Net.ctx): the world around the
+// victim (the cookie rain, the teleport, the clap). A human VICTIM's own page lives it on its own screen too (H.mine):
+// the dark, the music and his voice saying ITS god's name, the screamer screaming its nickname, the silence, then the
+// clap's boom, shake and flash, its own body crushed. The sandbox puts my camera, screen and music back on the way out,
+// so what the victim's screen gets goes through cmMyView (Net.bare: outside the sandbox, for real). Observers never get
+// any of it on their screens; near the victim they hear the music and stings where it stands.
 // total silence: the master bus fades out and comes back
 function cmSilence(on) {
   const m = Sound.master, c = Sound.ctx; if (!m || !c) return;
   m.gain.cancelScheduledValues(c.currentTime);
   m.gain.setTargetAtTime(on ? 0 : (Sound.muted ? 0 : settings.volume), c.currentTime, on ? 0.03 : 0.01);
 }
-// ---- Cookie Horror online (14n_net.js). The caster's page plays it as in single player (his cinematic, the real blow,
-// sent to the victim's owner). Every other page replays it in the caster's sandbox (Net.ctx): the world around the
-// victim (the snow, the teleport, the clap). A human VICTIM's own page lives it on its own screen too (H.mine): the
-// screen overlay (cookie snow, the glitch, the screamer, the black), the horror music and his whisper in its head, the
-// total silence, then the clap's boom, shake and flash. The sandbox puts my camera, screen and music back on the way
-// out, so what the victim's screen gets goes through cmMyView (Net.bare: outside the sandbox, for real). Observers never
-// get any of it on their screens; near the victim they hear the music and stings where it stands.
 function cmMyView(fn) { return Net.ctx ? Net.bare(fn) : fn(); }
 function cmHSfx(H, name, o = {}) {
   if (!Net.ctx) return Sound.god(name, o);
@@ -795,12 +1550,14 @@ function cmHorrorFx(H, fn) {
 }
 function cmHorrorStart(d) {
   if (CM.form === 'roll') cmRollOut();
-  const mine = !Net.ctx || !!(d.real && d.real.isSelf);   // (my own cast, or me the victim of another player's)
-  const H = CM.horror = { t: 0, d, mine, screen: mine ? cookieHorrorScreen(d) : null, snowAcc: 0, stage: 0, done: false, clap: 0, home: P.pos.clone() };
-  H.music = cmHSfx(H, 'horror_music', { gain: 0.9, loop: true });
-  VFX.later(0.4, () => cmHVoice(H, 'g_horror_whisper', { priority: 5, cooldown: 0 }));
-  if (mine) cmMyView(() => { Sound.duckMusic(0.05, CM_HORROR.boom + 1, 1.5); WORLD.dim = 0.6; PostFX.vigTarget = 0.6; });
-  cmScreamImg();
+  const self = !!(Net.ctx && d.real && d.real.isSelf), mine = !Net.ctx || self;   // (my own cast, or me the victim of another player's)
+  const H = CM.horror = { t: 0, d, mine, self, stage: 0, done: false, clap: 0, home: P.pos.clone() };
+  const info = cmVictimInfo(H); H.vg = info.god; H.name = info.name;
+  H.screen = mine ? cookieHorrorScreen(H) : null;
+  // the music comes first (a slammed low hit, then a creeping music box and a heartbeat that speeds up)
+  H.music = cmHSfx(H, 'horror_music', { gain: 1.0 });
+  if (mine) cmMyView(() => { Sound.duckMusic(0.05, CM_HORROR.boom + 1, 1.5); WORLD.dim = 0.62; PostFX.vigTarget = 0.55; });
+  cmScreamImg(); cmCookieLod();
 }
 function cmUpdateHorror(dt, t) {
   const H = CM.horror; if (!H) return;
@@ -810,33 +1567,45 @@ function cmHorrorTick(H, dt, t) {
   H.t += dt;
   const d = H.d, T = H.t;
   if (H.screen && !H.screen.done) H.screen.update(dt);
-  // cookie crumbs fall like snow around the victim
-  if (T < CM_HORROR.silence) {
-    H.snowAcc += dt * 70;
-    while (H.snowAcc > 1) { H.snowAcc--; const a = rand(0, TAU), r = 5 * Math.sqrt(Math.random()); FX2.solid.spawn({ pos: V3(d.pos.x + Math.cos(a) * r, rand(3, 5), d.pos.z + Math.sin(a) * r), vel: V3(rand(-0.3, 0.3), -rand(0.6, 1.2), rand(-0.3, 0.3)), life: rand(3, 4.5), size: rand(0.04, 0.09), sizeEnd: 0.04, cell: FXA.rock, pal: Math.random() < 0.7 ? 'cookie' : 'choco', temp: 0, tempEnd: 0, alpha: 1, turb: 0.6, floor: true, rotVel: rand(-3, 3) }); }
+  // the sky goes dark as the cookies start to fall
+  if (H.mine && T < CM_HORROR.scream) cmMyView(() => { WORLD.dim = lerp(0.66, 0.5, smoothstep(0.3, 3.5, T)); PostFX.vigTarget = lerp(0.55, 0.8, smoothstep(0.3, 4, T)); });
+  if (!H.rain && T >= CM_HORROR.rain - 0.05 && T < CM_HORROR.scream) cmRainStart(H);
+  cmRainTick(H, dt);
+  if (H.stage === 0 && T >= CM_HORROR.coming) { H.stage = 1; cmHVoiceFor(H, 'g_coming', 'g_horror_whisper', { priority: 5, cooldown: 0, gain: 1.15, hold: 2.6 }); }
+  if (H.stage === 1 && T >= CM_HORROR.glitch) { H.stage = 2; cmHSfx(H, 'glitch', { gain: 0.9 }); }
+  if (H.stage === 2 && T >= CM_HORROR.scream) {
+    H.stage = 3;
+    cmHSfx(H, 'scream_sting', { gain: 1.25, noDuck: true });
+    cmHVoiceFor(H, 'g_name', 'g_scream', { priority: 6, gain: 1.35, cooldown: 0, hold: 1.8 });
+    if (H.music) { H.music.stop(0.08); H.music = null; }
+    if (H.mine) cmMyView(() => { Cam.shake = Math.max(Cam.shake, 0.6); });
   }
-  if (H.stage === 0 && T >= CM_HORROR.glitch) { H.stage = 1; cmHSfx(H, 'glitch', { gain: 0.9 }); }
-  if (H.stage === 1 && T >= CM_HORROR.scream) { H.stage = 2; cmHSfx(H, 'scream_sting', { gain: 1.2, noDuck: true }); cmHVoice(H, 'g_scream', { priority: 6, gain: 1.3, cooldown: 0, hold: 2.0 }); if (H.music) H.music.stop(0.1); }
-  if (H.stage === 2 && T >= CM_HORROR.silence) { H.stage = 3; if (H.mine) { cmSilence(true); H.silent = true; } }   // (only the screens that live it go silent)
-  if (H.stage === 3 && T >= CM_HORROR.tele) {
-    H.stage = 4; if (H.silent) { cmSilence(false); H.silent = false; }
-    // he is simply THERE: right in front of the victim, facing it
+  if (H.stage === 3 && T >= CM_HORROR.silence) { H.stage = 4; if (H.mine) { cmSilence(true); H.silent = true; } }   // (only the screens that live it go silent)
+  if (H.stage === 4 && T >= CM_HORROR.tele) {
+    H.stage = 5; if (H.silent) { cmSilence(false); H.silent = false; }
+    // he is simply THERE: right in front of the victim, facing it, arms flung wide
     const f = (d.facing !== undefined) ? fwdOf(d.facing, _c1) : _c1.set(P.pos.x - d.pos.x, 0, P.pos.z - d.pos.z).normalize();
-    const dist = (d.radius || 0.5) + 1.5;
+    const dist = (d.radius || 0.5) + 1.45;
     P.pos.set(d.pos.x + f.x * dist, 0, d.pos.z + f.z * dist); P.vel.set(0, 0, 0);
     P.yaw = Math.atan2(d.pos.x - P.pos.x, d.pos.z - P.pos.z); Game.thoth.root.rotation.y = P.yaw;
     if (!Net.ctx) Cam.yaw = P.yaw;   // (my camera only behind my own god)
     cmHSfx(H, 'teleport', { gain: 1.0 });
     cmBurst(P.pos.clone().setY(1.4), 0.7, { pal: 'horror', distort: true });
-    Game.anim.play('clapwind');
-    if (H.mine) cmMyView(() => { WORLD.dim = 0.8; PostFX.vigTarget = 0.3; });
+    Game.anim.play(Game.anim.acts && Game.anim.acts.clap ? 'clap' : 'clapwind');
+    Sound.voice('laugh', { priority: 3, cooldown: 0, gain: 0.8 });
+    if (H.mine) cmMyView(() => { WORLD.dim = 0.78; PostFX.vigTarget = 0.35; });
   }
-  if (H.stage === 4) H.clap = clamp((T - CM_HORROR.tele) / (CM_HORROR.boom - CM_HORROR.tele), 0, 1);
+  if (H.stage === 5) H.clap = clamp((T - CM_HORROR.tele) / (CM_HORROR.boom - CM_HORROR.tele), 0, 1);
   // the slow motion: it eases in as the hands come together, holds through the BOOM, eases back out (real seconds)
   // (a replay's hit-stop never reaches my world: Game.hitStop and the sandbox; the victim's own game never slows)
-  if (H.stage >= 4 && !H.slowDone && T >= CM_HORROR.boom - CM_HORROR.slow.lead) cmHorrorSlow(H, dt);
-  if (H.stage === 4 && T >= CM_HORROR.boom) { H.stage = 5; cmHorrorBoom(H); }
-  if (H.stage === 5 && T >= CM_HORROR.end && H.slowDone) { H.done = true; CM.horror = null; if (H.mine) cmMyView(() => { WORLD.dim = 1; PostFX.vigTarget = 0; }); }
+  if (H.stage >= 5 && !H.slowDone && T >= CM_HORROR.boom - CM_HORROR.slow.lead) cmHorrorSlow(H, dt);
+  if (H.stage === 5 && T >= CM_HORROR.boom) { H.stage = 6; cmHorrorBoom(H); }
+  cmUpdateSquash(H);
+  if (H.stage === 6 && T >= CM_HORROR.end && H.slowDone) {
+    H.done = true; CM.horror = null; cmRainEnd(H);
+    if (H.squash) { H.squash.o.scale.copy(H.squash.s0); H.squash = null; }
+    if (H.mine) cmMyView(() => { WORLD.dim = 1; PostFX.vigTarget = 0; });
+  }
 }
 function cmHorrorSlow(H, dt) {
   const S = CM_HORROR.slow;
@@ -848,33 +1617,42 @@ function cmHorrorSlow(H, dt) {
   if (!Net.ctx) { Game.stopT = 0.05; Game.stopScale = H.slowK; }
 }
 function cmHorrorBoom(H) {
-  const d = H.d, c = P.pos.clone().lerp(d.pos, 0.5).setY(0), hands = P.pos.clone().addScaledVector(fwdOf(P.yaw, _c1), 0.8).setY(2.0);
+  const d = H.d, c = P.pos.clone().lerp(d.pos, 0.5).setY(0), hands = P.pos.clone().addScaledVector(fwdOf(P.yaw, _c1), 0.9).setY(1.9);
   cmHSfx(H, 'clap_boom', { gain: 1.5, noDuck: true, rate: 0.78 });   // (pitched down for the slow motion; its own long echo)
   cmHSfx(H, 'sonic_boom', { gain: 0.6, shared: true, noDuck: true, rate: 0.7 });
+  cmHSfx(H, 'crunch', { gain: 1.2, rate: 0.6 });   // (the crunch of the body between his palms)
   VFX.later(0.6, () => cmHVoice(H, 'g_clap_line', { priority: 5, cooldown: 0 }));
   // (one warm flash and a shake: on my screen if I cast it or am its victim)
-  if (H.mine) cmMyView(() => { Cam.shake = 1.5; Cam.fovKick = 14; PostFX.shock(hands, 1.6, 1.0); PostFX.aberr = 0.006; });
+  if (H.mine) cmMyView(() => { Cam.shake = 1.6; Cam.fovKick = 15; PostFX.shock(hands, 1.7, 1.0); PostFX.aberr = 0.006; });
   VFX.flash(hands, CMC.caramel, 34, 0.5);
-  FX2.burst(hands, 'cookie', { size: 1.8, sparks: 70, embers: 40, puffs: 8, bursts: 2, int: 0.7, smokeGlow: 0.3 });
+  FX2.burst(hands, 'cookie', { size: 1.6, sparks: 70, embers: 40, puffs: 8, bursts: 2, int: 0.55, smokeGlow: 0.25 });
   FX2.burst(hands, 'horror', { size: 1.1, sparks: 30, embers: 20, puffs: 0, bursts: 1, int: 0.6, light: false, distort: false });
   FX2.ring(c, 'cookie', { radius: 9, dur: 0.6, width: 0.09, int: 1.2 });
   VFX.later(0.1, () => FX2.ring(c, 'choco', { radius: 16, dur: 0.9, width: 0.06 }));
   VFX.later(0.22, () => FX2.ring(c, 'horror', { radius: 26, dur: 1.2, width: 0.04, int: 1.0 }));   // the BOOM rolls across the whole hall
   FX2.distort.ring(hands, 40, 0.045, 0.9);
   FX2.debris(c.clone().setY(0.4), null, 24, 1.4, FX2.pal('cookie'));
-  cmChips(hands, 30, 1.6); cmCrumbs(hands, 60, 1.8);
-  for (let i = 0; i < 40; i++) { _c2.set(rand(-1, 1), rand(-0.4, 1), rand(-1, 1)).normalize(); FX2.solid.spawn({ pos: hands, vel: _c2.clone().multiplyScalar(rand(4, 12)), life: rand(1.2, 2.0), size: rand(0.06, 0.13), sizeEnd: 0.05, cell: FXA.rock, pal: Math.random() < 0.6 ? 'cookie' : 'choco', temp: 0, tempEnd: 0, alpha: 1, gravity: -6, drag: 1.2, floor: true, rotVel: rand(-6, 6) }); }
+  cmChips(hands, 34, 1.7); cmCrumbs(hands, 70, 1.9);
+  for (let i = 0; i < 46; i++) { _c2.set(rand(-1, 1), rand(-0.4, 1), rand(-1, 1)).normalize(); FX2.solid.spawn({ pos: hands, vel: _c2.clone().multiplyScalar(rand(4, 12)), life: rand(1.2, 2.0), size: rand(0.06, 0.13), sizeEnd: 0.05, cell: FXA.rock, pal: Math.random() < 0.6 ? 'cookie' : 'choco', temp: 0, tempEnd: 0, alpha: 1, gravity: -6, drag: 1.2, floor: true, rotVel: rand(-6, 6) }); }
+  // the body between his palms: a burst of it all sideways out of the clap, dust driven out flat along the floor
+  const side = rightOf(P.yaw, _c3);
+  for (let i = 0; i < 28; i++) { const s = Math.random() < 0.5 ? 1 : -1; FX2.solid.spawn({ pos: d.pos.clone().setY(1.2), vel: side.clone().multiplyScalar(s * rand(5, 11)).add(_c4.set(rand(-1.5, 1.5), rand(0.5, 4), rand(-1.5, 1.5))), life: rand(0.8, 1.3), size: rand(0.06, 0.14), sizeEnd: 0.05, cell: FXA.drop, pal: 'choco', temp: 0.1, tempEnd: 0, alpha: 1, gravity: -12, drag: 0.5, floor: true, stretch: 1.6 }); }
+  cmDust(d.pos, 14, 1.8);
   FX2.scorch(c, 'cookie', { radius: 4, dur: 5, int: 0.6, dark: new THREE.Color(0.15, 0.06, 0.02), darkAlpha: 0.65 });
+  VFX.cracks(c, 5, 4, { grow: 0.12, intensity: 1.3, color: CMC.caramel });
+  cmRainBlast(H, c);
+  const so = cmSquashTarget(H); if (so) H.squash = { o: so, s0: so.scale.clone() };
   // the victim takes the highest single hit in the game; anyone close by is blown back
   // (online the caster's page deals it, Combat.deal -> its owner; a replay deals nothing)
   if (d.alive) {
-    const dmg = cmDmg('ch');
-    Combat.deal(d, dmg, 'final', 'Cookie Horror', true);
+    Combat.deal(d, cmDmg('hr'), 'final', 'Cookie Horror', true);
     cmBurst(d.pos.clone().setY(1.4), 1.0, { pal: 'horror', distort: false });
   }
+  cmText(d.pos.clone().setY((d.height || 2) + 1.4), 'CRUSHED', '#ff3a20', true);
+  cmCrumbDrop(d);
   for (const u of dummiesNear(c, CM_HORROR.splashR)) {
     if (u === d) continue;
-    Combat.deal(u, cmDmg('ch') * CM_HORROR.splash, 'final', 'Cookie Horror');
+    Combat.deal(u, cmDmg('hr') * CM_HORROR.splash, 'final', 'Cookie Horror');
     const out = _c1.set(u.pos.x - c.x, 0, u.pos.z - c.z), L = out.length() || 1; u.shove(out.multiplyScalar(2.4 / L), 2);
   }
 }
@@ -900,17 +1678,18 @@ function cmFootfall(p) {
   cmDust(p, 1 + Math.round(k), 0.5 + 0.3 * k);
   cmCrumbs(_c4.copy(p).setY(0.1), 2 + Math.round(3 * k), 0.4 + 0.3 * k, 0.6);
 }
-// the clap itself: both arms spread wide and slammed together in front of his chest (two-bone IK over the clip)
+// the clap itself: the 'clap' clip flings both arms wide and brings them together; two-bone IK over it makes the palms
+// meet exactly on the victim (in front of his chest) at the BOOM
 function cmClapPost(rig, dt, anim) {
   if (Game.anim !== anim) return;   // (another player's copy of him posed outside his kit's sandbox: his state is not in CM then, 14n_net.js)
   cmHeavyPost(rig, dt, anim);
-  const H = CM.horror; if (!H || H.stage < 4) return;
-  const k = H.clap, after = H.stage === 5 ? clamp((H.t - CM_HORROR.boom) / 0.6, 0, 1) : 0;
-  const w = (H.stage === 5 ? 1 - smoothstep(0.3, 1, after) : 1) * smoothstep(0, 0.1, H.t - CM_HORROR.tele);
+  const H = CM.horror; if (!H || H.stage < 5) return;
+  const k = H.clap, after = H.stage === 6 ? clamp((H.t - CM_HORROR.boom) / 0.6, 0, 1) : 0;
+  const w = 0.75 * (H.stage === 6 ? 1 - smoothstep(0.35, 1, after) : 1) * smoothstep(0, 0.1, H.t - CM_HORROR.tele);
   if (w < 0.01) return;
   const yaw = rig.root.rotation.y, fwd = _c2.set(Math.sin(yaw), 0, Math.cos(yaw)), left = _c3.set(Math.cos(yaw), 0, -Math.sin(yaw));
   const chest = _c4.setFromMatrixPosition(rig.b('Spine02').matrixWorld);
-  const spread = lerp(1.15, 0.06, Math.pow(k, 2.2)), fwdD = lerp(0.35, 0.75, k), upD = lerp(0.35, 0.05, k);
+  const spread = lerp(1.25, 0.05, Math.pow(k, 2.4)), fwdD = lerp(0.3, 0.8, k), upD = lerp(0.4, 0.05, k);
   for (const [s, arm, fore, hand] of [[1, 'LeftArm', 'LeftForeArm', 'LeftHand'], [-1, 'RightArm', 'RightForeArm', 'RightHand']]) {
     const target = _c1.copy(chest).addScaledVector(left, s * spread).addScaledVector(fwd, fwdD).add(_c5.set(0, upD, 0));
     const pole = new THREE.Vector3().copy(left).multiplyScalar(s).add(_c5.set(0, -0.6, 0)).addScaledVector(fwd, -0.3);
@@ -922,36 +1701,65 @@ function cmClapPost(rig, dt, anim) {
 // The kit
 // ---------------------------------------------------------------------------
 const cmPw = () => ppow();
+// Cookie Rage's whole 10 s at its best (one target, every hit landing): the transform slam, the casts of its three abilities
+// their cooldowns allow, sword swings in the time left. Cookie Horror stays at least twice this (god-kit-design.md).
+function cmRageBudget() {
+  const sw = cmDmg('cr', 'sword', 'swordScale'), dur = CM_RAGE.dur;
+  const n = (cd, cast) => Math.max(1, Math.floor((dur - cast) / cd) + 1);
+  const nx = n(cdOf('bx'), 1.0), nm = n(cdOf('mh'), 1.3), ns = n(cdOf('sk'), 1.7);
+  const used = nx * 1.0 + nm * 1.3 + ns * 1.7, swingT = Math.max(0, dur - used);   // (the sword combo at full rage attack speed: ~2.8 swings' worth a second, chops and finishers counted)
+  const bx = 2 * cmDmg('bx') * 1.24, mh = cmDmg('mh') + cmDmg('mh', 'up', 'upScale') + cmDmg('mh', 'burn', 'burnScale') * 2.6, sk = cmDmg('sk') + cmDmg('sk', 'burn', 'burnScale') * 3.2;
+  return Math.round(cmDmg('cr', 'slam', 'slamScale') + nx * bx + nm * mh + ns * sk + swingT * sw * 2.8);
+}
 const COOKIE_INFO = {
   passive: { name: 'Cookie Lover', kind: 'Passive · Heal',
-    text: `Every ${CM_EAT.every} seconds Cookie Monster eats a cookie (he keeps walking while he chews) and gets back ${Math.round(CM_EAT.heal * 100)}% of his max health and ${Math.round(CM_EAT.mana * 100)}% of his max mana.`,
-    rows: () => [['Next cookie', `${Math.max(0, CM.eatT).toFixed(1)} s`], ['Health', `${Math.round(CM_EAT.heal * 100)}% = ${Math.round(maxHp() * CM_EAT.heal)}`], ['Mana', `${Math.round(CM_EAT.mana * 100)}% = ${Math.round(maxMp() * CM_EAT.mana)}`]] },
-  cc: { name: 'Cookie Cannon', kind: 'Line · Piercing · Slow · Physical',
-    text: 'He hurls a huge, spinning cookie straight ahead. It tears through EVERYTHING in its path, sprays chocolate chunks and crumbs, and slows everyone it hits.',
-    rows: () => { const r = rankOf('cc'); return [['Damage', `${AB.cc.dmg[r - 1]} (+80% of ${cmPw()} power) = ${Math.round(cmDmg('cc'))}`], ['Slow', `${AB.cc.slow * 100}% for ${AB.cc.slowDur} s`], ['Range', `${AB.cc.range}`], ['Cooldown', `${cdOf('cc').toFixed(1)} s`]]; } },
-  cf: { name: 'Crumble Form', kind: 'Toggle · Free · Speed',
-    text: 'He curls up into a giant rolling cookie wheel: +70% speed, heavy momentum in the turns and a trail of crumbs. No abilities or attacks while he rolls. Free and without cooldown – toggle it on and off whenever you like.',
-    rows: () => [['Speed', `+${CM_ROLL.speed * 100}%`], ['Cost', '0 · no cooldown'], ['Now', CM.form === 'roll' ? 'rolling' : 'on foot']] },
-  dm: { name: 'Dough Mine', kind: 'Trap · Area · Root · Physical',
-    text: `He lobs a cookie-dough bomb onto the ground. It arms after ${CM_MINE.arm} s and goes off in a bubbling caramel-and-chocolate explosion when an enemy steps on it – damage and root. Max ${CM_MINE.max} at a time (the oldest goes off when you place a 6th), lasts ${CM_MINE.life} s.`,
-    rows: () => { const r = rankOf('dm'); return [['Damage', `${AB.dm.dmg[r - 1]} (+70%) = ${Math.round(cmDmg('dm'))}`], ['Root', `${CM_MINE.root} s + knock-up`], ['Radius', `${CM_MINE.radius} m`], ['Placed', `${CM.mines.length} / ${CM_MINE.max}`], ['Cooldown', `${cdOf('dm').toFixed(1)} s`]]; } },
+    text: `Every ${CM_EAT.every} seconds Cookie Monster eats a cookie (he keeps walking while he chews) and gets back ${Math.round(CM_EAT.heal * 100)}% of his max health and ${Math.round(CM_EAT.mana * 100)}% of his max mana. <b>Crumbs:</b> his Chomp, his rolling wheel, his Molten Chocolate and every third punch cover enemies in cookie crumbs (up to 3). An enemy with 3 Crumbs is FOOD – Chomp devours it, and a Devour counts as a cookie.`,
+    rows: () => [['Next cookie', `${Math.max(0, CM.eatT).toFixed(1)} s`], ['Health', `${Math.round(CM_EAT.heal * 100)}% = ${Math.round(maxHp() * CM_EAT.heal)}`], ['Mana', `${Math.round(CM_EAT.mana * 100)}% = ${Math.round(maxMp() * CM_EAT.mana)}`], ['Crumbs', `max ${CM_CRUMB.max} · last ${CM_CRUMB.dur} s`]] },
+  cp: { name: 'Chomp', kind: 'Lunge · Cone · Crumbs · Physical',
+    text: 'He lunges forward and giant cookie JAWS with chocolate fangs slam shut in front of him: damage and +1 Crumb to everything they catch. On an enemy with 3 Crumbs it becomes DEVOUR: the jaws grab it and bite three more times – one bite per Crumb, eating them – and he heals as if he had eaten a cookie.',
+    rows: () => { const r = cmRank('cp'); return [['Damage', `${AB.cp.dmg[r - 1]} (+75% of ${cmPw()} power) = ${Math.round(cmDmg('cp'))}`], ['Devour', `3 × ${Math.round(cmDmg('cp', 'devour', 'devourScale'))} (${AB.cp.devour[r - 1]} +40% per Crumb) + ${Math.round(CM_EAT.heal * 100)}% health`], ['Lunge', `${CM_CHOMP.lunge} m`], ['Cooldown', `${cdOf('cp').toFixed(1)} s`]]; } },
+  cf: { name: 'Crumble Form', kind: 'Toggle · Free · Speed · Crumbs',
+    text: `He curls up into a giant rolling cookie wheel: +${CM_ROLL.speed * 100}% speed and heavy momentum. Whoever he rolls over is RAMMED – a crunchy hit, shoved aside and given a Crumb (once per second per enemy). Roll through your own Molten Chocolate and the wheel comes out coated: it burns, hits ${Math.round((CM_ROLL.coatK - 1) * 100)}% harder and leaves a burning chocolate trail for ${CM_ROLL.coat} s. No other abilities while rolling. Free, no cooldown.`,
+    rows: () => { const r = cmRank('cf'); return [['Ram damage', `${AB.cf.roll[r - 1]} (+25%) = ${Math.round(cmDmg('cf', 'roll', 'rollScale'))} · coated ×${CM_ROLL.coatK}`], ['Speed', `+${CM_ROLL.speed * 100}%`], ['Cost', '0 · no cooldown'], ['Now', CM.form === 'roll' ? (CM.roll && CM.roll.coat > 0 ? 'rolling · COATED' : 'rolling') : 'on foot']]; } },
+  mo: { name: 'Molten Chocolate', kind: 'Ground · Area · Slow · Burn · Crumbs',
+    text: `He hurls a huge chocolate-chip cookie that bursts on impact into a bubbling, steaming pool of molten chocolate. Enemies inside are stuck in it (${CM_MOLTEN.slow * 100}% slow), burn, and get a Crumb every ${CM_MOLTEN.crumbEvery} s. Roll through it in Crumble Form to coat the wheel.`,
+    rows: () => { const r = cmRank('mo'); return [['Impact', `${AB.mo.dmg[r - 1]} (+50%) = ${Math.round(cmDmg('mo'))}`], ['Burn', `${Math.round(cmDmg('mo', 'burn', 'burnScale'))} / s for ${CM_MOLTEN.dur} s`], ['Pool', `${CM_MOLTEN.radius} m`], ['Cooldown', `${cdOf('mo').toFixed(1)} s`]]; } },
   cr: { name: 'Cookie Rage', kind: 'Transformation · Melee · Physical',
-    text: `He roars in slow motion – the ground shakes and splits – and explodes in fire and crumbs into a 4.75-metre living cookie with two glowing, molten COOKIE SWORDS for ${CM_RAGE.dur} s. He fights with both swords in one flowing combo (+${CM_RAGE.as * 100}% attack speed, +${CM_RAGE.ms * 100}% speed) and takes a heavy step into every swing: right chop, left chop, a wide sweep, a spinning rising slash – and then a finisher: a spinning leap where both swords crash into the ground, or a double SLAM with a fire shockwave. The lava in his cracks pulses, he roars between combos, and every step sends out a shockwave.`,
-    rows: () => { const r = rankOf('cr'), sw = Math.round(cmDmg('cr', 'sword', 'swordScale')); return [['Transformation', `${AB.cr.slam[r - 1]} (+100%) = ${Math.round(cmDmg('cr', 'slam', 'slamScale'))}`], ['Per sword swing', `${AB.cr.sword[r - 1]} (+20%) = ${sw} · chop ×1.25 = ${Math.round(sw * 1.25)}`], ['Combo', `spin slash ×1.8 · leap ×0.8 + ×2.4 · slam ×2.8`], ['Duration', `${CM_RAGE.dur} s`], ['Cooldown', `${cdOf('cr').toFixed(0)} s`]]; } },
-  ch: { name: 'Cookie Horror', kind: 'Final ability · Horror · True damage · Single target',
-    text: 'Choose ONE enemy god, anywhere on the map. Cookie crumbs fall like snow around the victim, the horror music creeps in … the picture glitches … a screaming cookie face fills the screen … then everything goes DEAD silent. And then Cookie Monster is standing right in front of the victim and CLAPS: a boom heard across the whole hall. The highest single-target damage in the game.',
-    rows: () => { const r = rankOf('ch'); return [['Damage', `${AB.ch.dmg[r - 1]} (+1000% of ${cmPw()} power) = ${Math.round(cmDmg('ch'))} true damage`], ['Around', `${CM_HORROR.splash * 100}% within ${CM_HORROR.splashR} m`], ['Cost', `${costOf('ch')} mana`], ['Cooldown', `${cdOf('ch').toFixed(0)} s`]]; } },
+    text: `He roars in slow motion – the ground shakes and splits – and explodes in fire and crumbs into a 4.75-metre living cookie with two molten COOKIE SWORDS for ${CM_RAGE.dur} s (+${CM_RAGE.as * 100}% attack speed, +${CM_RAGE.ms * 100}% speed). His attacks become a flowing two-sword combo with a finisher, and Q, E and R become the rage's own abilities: <b>Burning Cross</b>, <b>Molten Charge</b> and <b>Skyfall</b>.`,
+    rows: () => { const r = cmRank('cr'), sw = Math.round(cmDmg('cr', 'sword', 'swordScale')); return [['Transformation', `${AB.cr.slam[r - 1]} (+100%) = ${Math.round(cmDmg('cr', 'slam', 'slamScale'))}`], ['Per sword swing', `${AB.cr.sword[r - 1]} (+20%) = ${sw} · chop ×1.25 = ${Math.round(sw * 1.25)}`], ['Combo', 'spin slash ×1.8 · leap ×0.8 + ×2.4 · slam ×2.8'], ['Whole rage (max)', `≈ ${cmRageBudget()}`], ['Duration', `${CM_RAGE.dur} s`], ['Cooldown', `${cdOf('cr').toFixed(0)} s`]]; } },
+  bx: { name: 'Burning Cross', kind: 'Rage · Line · Piercing · Burn',
+    text: 'Both burning swords cross before his chest and are torn apart: two crescents of fire fly out in an X, ripping through everything in a long line. Each crescent hits once and sets the target burning – right where they cross, it takes both.',
+    rows: () => { const r = cmRank('bx'); return [['Per crescent', `${AB.bx.dmg[r - 1]} (+30%) = ${Math.round(cmDmg('bx'))}`], ['Range', `${Math.round(AB.bx.range * SU)} m`], ['Cooldown', `${cdOf('bx').toFixed(1)} s`]]; } },
+  mh: { name: 'Molten Charge', kind: 'Rage · Dash · Knock-up · Burn',
+    text: `He charges ${CM_CHARGE.dist} m, dragging both swords through the floor: a burning trench behind him, everything in his way burned and thrown aside. At the end a rising slash throws everyone in front of him into the air.`,
+    rows: () => { const r = cmRank('mh'); return [['Charge', `${AB.mh.dmg[r - 1]} (+40%) = ${Math.round(cmDmg('mh'))}`], ['Rising slash', `${AB.mh.up[r - 1]} (+30%) = ${Math.round(cmDmg('mh', 'up', 'upScale'))} + knock-up`], ['Trench', `${Math.round(cmDmg('mh', 'burn', 'burnScale'))} / s for ${CM_CHARGE.trench} s`], ['Cooldown', `${cdOf('mh').toFixed(1)} s`]]; } },
+  sk: { name: 'Skyfall', kind: 'Rage · Leap · Area · Knock-up',
+    text: 'He leaps high into the sky and crashes down with both swords on the aimed spot: a shockwave, everything around thrown up, and a crater of molten cookie that keeps burning.',
+    rows: () => { const r = cmRank('sk'); return [['Damage', `${AB.sk.dmg[r - 1]} (+60%) = ${Math.round(cmDmg('sk'))}`], ['Crater', `${Math.round(cmDmg('sk', 'burn', 'burnScale'))} / s for 3 s`], ['Radius', `${CM_SKY.radius} m`], ['Cooldown', `${cdOf('sk').toFixed(1)} s`]]; } },
+  hr: { name: 'Cookie Horror', kind: 'Final ability · Horror · True damage · Single target',
+    text: 'Choose ONE enemy god, anywhere on the map. Scary music creeps in, the sky goes dark and REAL cookies start raining down on the victim … a voice whispers its name: Cookie Monster is coming for you … the picture glitches … a screaming cookie face lunges into the screen and SCREAMS ITS NAME … then dead silence. And then he is standing right in front of it, flings his arms wide and CLAPS – crushing it between his hands with a boom heard across the whole hall. The highest single-target damage in the game.',
+    rows: () => { const r = cmRank('hr'), dmg = Math.round(cmDmg('hr')); return [['Damage', `${AB.hr.dmg[r - 1]} (+1000% of ${cmPw()} power) = ${dmg} true damage`], ['vs. Cookie Rage', `${(dmg / Math.max(1, cmRageBudget())).toFixed(1)}× its whole 10 s`], ['Around', `${CM_HORROR.splash * 100}% within ${CM_HORROR.splashR} m`], ['Cost', `${costOf('hr')} mana`], ['Cooldown', `${cdOf('hr').toFixed(0)} s`]]; } },
 };
+function cmCleanup() {
+  if (CM.chomp) { cmJawsBreak(CM.chomp); CM.chomp = null; }
+  for (const T of CM.throws) cmDropCookie(T.g); CM.throws = [];
+  for (const Q of CM.pools) { if (Q.haze) Q.haze.dead = true; cmDrop(Q.m); Q.m.geometry.dispose(); Q.m.material.dispose(); } CM.pools = [];
+  for (const W of CM.waves) { cmDrop(W.m); W.mat.dispose(); if (W.geo) W.geo.dispose(); } CM.waves = [];
+  CM.trail = []; CM.trench = [];
+  for (const d of [...CM.crumbs.keys()]) cmCrumbDrop(d);
+  if (CM.act) cmEndAct();
+}
 registerGod({
   id: 'cookie', dbg: CM, name: 'Cookie Monster', title: 'The Cookie Nightmare', epithet: 'The Cookie Horror', pantheon: 'Unknown', role: 'Warrior',
-  color: '#e0782a', glyphs: '🍪 ✹ ☠ ✦ ◉', asset: 'cookie', stats: COOKIE_STATS, order: ['cc', 'cf', 'dm', 'cr', 'ch'], ab: cookieAB,
-  blurb: 'A hulking brute with a cracked chocolate-chip cookie for a head – cookie cannon, rolling cookie wheel, dough mines, burning cookie swords and the finale <em>Cookie Horror</em>.',
+  color: '#e0782a', glyphs: '🍪 ✹ ☠ ✦ ◉', asset: 'cookie', stats: COOKIE_STATS, order: CM_ORDER.normal.slice(), allIds: [...CM_ORDER.normal, ...CM_RAGE_IDS], ab: cookieAB,
+  blurb: 'A hulking brute with a cracked chocolate-chip cookie for a head – he covers enemies in crumbs and EATS them: giant cookie jaws, a rolling cookie wheel, molten chocolate, burning cookie swords and the finale <em>Cookie Horror</em>.',
   info: COOKIE_INFO, physical: true, ownerOnly: true, noBot: true, lockedTitle: 'steens secret, good luck',
   textColor: '#ffc27a', finalColor: '#ff3a20', fxColor: CMC.caramel, accent: CMC.caramel,
   get accel() { return CM.form === 'roll' ? CM_ROLL.accel : CM.form === 'rage' ? 3.6 : 3.2; },   // (a heavy body: slow to get going, slow to stop)
   init() {
     CM.home = { rig: Game.thoth, anim: Game.anim };
     CM.form = 'normal'; CM.eatT = 6; CM.eat = null; CM.combo = 0; CM.comboT = 0; CM.cookieBack = 0;
+    CM.crumbs = new Map(); CM.chomp = null; CM.throws = []; CM.pools = []; CM.trail = []; CM.waves = []; CM.trench = []; CM.act = null;
     if (CM.home.rig.propL) CM.home.rig.propL.visible = false;
     CM.home.anim.post = cmClapPost;
     if (!CM.home.anim._cmStep) { const a = CM.home.anim, s0 = a.onStep; a._cmStep = true; a.onStep = (p) => { if (s0) s0(p); if (Kit === GODS.cookie && Game.anim === a) cmFootfall(p); }; }
@@ -961,79 +1769,92 @@ registerGod({
   dispose() {
     cmPickerClose();
     if (CM.horror) {
-      const H = CM.horror; if (H.screen) H.screen.dispose(); if (H.music) H.music.stop(0.1); CM.horror = null;
+      const H = CM.horror; if (H.screen) H.screen.dispose(); if (H.music) H.music.stop(0.1); CM.horror = null; cmRainEnd(H);
+      if (H.squash) H.squash.o.scale.copy(H.squash.s0);
       if (!Net.ctx) { cmSilence(false); Game.stopT = 0; Game.stopScale = 1; }
       else if (H.mine) { if (H.silent) cmSilence(false); cmMyView(() => { WORLD.dim = 1; PostFX.vigTarget = 0; }); }   // (its victim's screen comes back: the caster fell, left ...)
     }
+    cmCleanup();
     if (CM.rage) { if (CM.rage.charge) CM.rage.charge.dead = true; if (CM.rage.sfx) CM.rage.sfx.stop(0.1); if (CM.rage.aura) CM.rage.aura.dead = true; if (CM.rage.mist) CM.rage.mist.dead = true; if (CM.rage.haze) CM.rage.haze.dead = true; cmSwapForm(false); CM.rage = null; }
     if (CM.rageR && CM.rageR.ribbons) for (const rb of CM.rageR.ribbons) rb.reset();
     for (const L of CM.lifts) L.d.lift = 0; CM.lifts = [];
-    if (CM.roll) { if (CM.roll.loop) CM.roll.loop.stop(0.1); cmDrop(CM.roll.W); CM.roll = null; }
-    CM.form = 'normal';
+    if (CM.roll) { if (CM.roll.loop) CM.roll.loop.stop(0.1); for (const M of CM.roll.mats) M.m.dispose(); cmDropCookie(CM.roll.W); CM.roll = null; }
+    CM.form = 'normal'; cmSetOrder(false);
     if (CM.home) { CM.home.rig.root.visible = true; CM.home.anim.post = null; if (CM.home.rig.propL) CM.home.rig.propL.visible = false; if (CM.home.rig.prop) CM.home.rig.prop.visible = true; }
-    for (const M of CM.mines) cmDrop(M.g); CM.mines = [];
     for (const a of CM.auras) a.dead = true; CM.auras = [];
     WORLD.dim = 1; PostFX.vigTarget = 0; P.asBuff = 1;
   },
   intercept(id) {
     if (CM.pick || (CM.horror && !CM.horror.done)) return true;
     if (CM.form === 'roll' && id !== 'cf') { HUD.warn('Rolling – press E to stand up'); return true; }
-    if (CM.form === 'rage') { HUD.warn('Cookie Rage: only the swords now'); return true; }
+    if (CM.form === 'rage') {
+      if (CM_RAGE_IDS.includes(id)) return false;   // (the rage's own Q E R: cast as usual)
+      HUD.warn(id === 'hr' ? 'Not in Cookie Rage' : 'Cookie Rage is already burning'); return true;
+    }
+    if (CM_RAGE_IDS.includes(id)) return true;   // (a rage ability outside the rage: nothing)
     if (id === 'cf') { if (CM.form === 'normal' || CM.form === 'roll') { castCrumble(); } return true; }   // the free toggle (no mana, no cooldown)
-    if (id === 'ch' && !CM.pick) { if (!Net.ctx && canCast('ch')) cmPickerOpen(); return true; }   // (a replay: the victim comes as its own event, castOn)
+    if (id === 'hr' && !CM.pick) { if (!Net.ctx && canCast('hr')) cmPickerOpen(); return true; }   // (a replay: the victim comes as its own event, castOn)
     return false;
   },
   // online, another player's Cookie Monster (14n_net.js, the K event): he ate a cookie, or chose his Cookie Horror victim
   castOn(id, d) {
     if (id === 'eat') { if (!CM.eat) cmStartEat(); }
-    else if (id === 'ch' && d && d.alive && !CM.horror) cmHorrorStart(d);
+    else if ((id === 'hr' || id === 'ch') && d && d.alive && !CM.horror) cmHorrorStart(d);
   },
   busy: cmBusy,
-  cast(id) { ({ cc: castCookieCannon, cf: castCrumble, dm: castDoughMine, cr: castCookieRage, ch: () => cmPickerOpen() })[id](); },
+  cast(id) { const f = ({ cp: castChomp, cf: castCrumble, mo: castMolten, cr: castCookieRage, hr: () => cmPickerOpen(), bx: castBurningCross, mh: castMoltenCharge, sk: castSkyfall })[id]; if (f) f(); },
   basic: cookieBasic,
   preUpdate() { if (CM.pick) cmPickerInput(); },
   rmb() { if (CM.pick) { cmPickerClose(); Sound.cancel(); } },
   moveOverride() {
     if ((CM.horror && !CM.horror.done) || CM.pick || (CM.rage && CM.rage.phase === 'in')) { P.vel.set(0, 0, 0); return true; }
+    if (CM.act) { if (!(CM.act.id === 'mh' && CM.act.phase === 'run')) P.vel.set(0, 0, 0); return true; }   // (his rage abilities move him themselves)
+    if (CM.chomp && CM.chomp.t < CM_CHOMP.lungeEnd + 0.05) { P.vel.set(0, 0, 0); return true; }
     return false;
   },
   speedMul() { return CM.form === 'roll' ? 1 + CM_ROLL.speed : CM.form === 'rage' ? 1 + CM_RAGE.ms : 1; },
   noJump() { return cmBusy() || CM.form === 'roll'; },
-  animVel() { return (CM.horror && !CM.horror.done) || CM.pick || CM.form === 'roll' ? _v1.set(0, 0, 0) : P.vel; },   // (rolling: the hidden body stands still - no steps, no footprints)
-  lockYaw() { return !!(CM.horror && !CM.horror.done); },
-  dashing() { return CM.form === 'roll'; },
-  eyeBoost() { return (CM.horror ? 1.6 : 0) + (CM.form === 'rage' ? 2.2 + 0.4 * Math.sin(Game.time * 9) : 0) + (CM.eat ? 0.4 : 0); },   // (rage: blazing)
-  // the cinematic cut to the victim's eyes during the snow / glitch / scream
+  animVel() { return (CM.horror && !CM.horror.done) || CM.pick || CM.form === 'roll' || (CM.act && !(CM.act.id === 'mh' && CM.act.phase === 'run')) ? _v1.set(0, 0, 0) : P.vel; },   // (rolling: the hidden body stands still - no steps, no footprints)
+  lockYaw() { return !!((CM.horror && !CM.horror.done) || CM.act || (CM.chomp && !CM.chomp.bit)); },
+  dashing() { return CM.form === 'roll' || !!(CM.act && CM.act.id === 'mh' && CM.act.phase === 'run'); },
+  eyeBoost() { return (CM.horror ? 1.6 : 0) + (CM.form === 'rage' ? 2.2 + 0.4 * Math.sin(Game.time * 9) : 0) + (CM.eat ? 0.4 : 0) + (CM.chomp ? 0.8 : 0); },   // (rage: blazing)
+  // the cinematic cut to the victim's eyes during the music, the cookie rain, the glitch and the scream: it looks up into
+  // the dark sky as the first cookies fall, then straight ahead into what is coming
   postCamera() {
     const H = CM.horror; if (!H || H.t >= CM_HORROR.silence + 0.05) return;
     const d = H.d, yaw = d.facing !== undefined ? d.facing : Math.atan2(P.pos.x - d.pos.x, P.pos.z - d.pos.z);
     const eye = _c1.set(d.pos.x, (d.height || 2) * 0.88 + (d.lift || 0), d.pos.z).addScaledVector(fwdOf(yaw, _c2), 0.35);
     camera.position.copy(eye).add(_c3.set(Math.sin(H.t * 0.9) * 0.02, Math.sin(H.t * 1.3) * 0.015, 0));
-    camera.lookAt(_c4.copy(eye).addScaledVector(fwdOf(yaw + Math.sin(H.t * 0.4) * 0.12, _c2), 6).add(_c5.set(0, -0.35, 0)));
+    const up = 3.2 * smoothstep(0.4, 1.4, H.t) * (1 - smoothstep(2.4, 3.6, H.t));
+    camera.lookAt(_c4.copy(eye).addScaledVector(fwdOf(yaw + Math.sin(H.t * 0.4) * 0.12, _c2), 6).add(_c5.set(0, -0.35 + up, 0)));
     camera.fov = 58; camera.updateProjectionMatrix();
   },
   update(dt, t) {
     CM.comboT = Math.max(0, CM.comboT - dt);
     P.asBuff = CM.form === 'rage' ? 1 + CM_RAGE.as : 1;
-    // the cookie in his hand regrows after a Cookie Cannon
+    // the abilities off the bar (the other form's) keep cooling down
+    for (const k of [...CM_ORDER.normal, ...CM_RAGE_IDS]) if (!ABILITY_ORDER.includes(k)) P.cd[k] = settings.noCooldowns ? 0 : Math.max(0, (P.cd[k] || 0) - dt);
+    // the cookie in his hand regrows after he throws it
     const pr = CM.home && CM.home.rig.prop;
     if (pr) { if (CM.cookieBack > 0) { CM.cookieBack -= dt; pr.visible = false; if (CM.cookieBack <= 0) { pr.visible = true; pr.scale.setScalar(0.01); } } else if (pr.scale.x < 1) pr.scale.setScalar(Math.min(1, pr.scale.x + dt * 4)); }
-    cmUpdateEat(dt); cmUpdateRoll(dt); cmUpdateMines(dt, t); cmUpdateRage(dt, t); cmUpdateHorror(dt, t); cmUpdateLifts(dt);
+    cmUpdateEat(dt); cmUpdateChomp(dt); cmUpdateRoll(dt); cmUpdateThrows(dt); cmUpdatePools(dt, t); cmUpdateTrail(dt);
+    cmUpdateRage(dt, t); cmUpdateWaves(dt, t); cmUpdateTrench(dt); cmUpdateHorror(dt, t); cmUpdateLifts(dt); cmUpdateCrumbs(dt, t);
     if (CM.form === 'normal' && Math.random() < dt * 2.5) cmCrumbs(cmMouth(_c3).add(_c4.set(rand(-0.2, 0.2), 0.2, rand(-0.2, 0.2))), 1, 0.3, 0.2);   // his head sheds crumbs
   },
   onKill(d) { CM.kills++; },
   targeter() {
-    if (P.targeting === 'cc') lineTarget.show(P.pos, P.yaw, AB.cc.range * SU, AB.cc.width * 1.6, AB.cc.width * 1.6);
-    else if (P.targeting === 'dm') { const c = groundTarget(AB.dm.range * SU, 2.5); circleTarget.show(c, CM_MINE.radius, CMC.caramel); lineTarget.show(P.pos, P.yaw, c.distanceTo(_v1.copy(P.pos).setY(0)), 0.3, 0.3); }
+    if (P.targeting === 'mo') { const c = groundTarget(AB.mo.range * SU, 3); circleTarget.show(c, CM_MOLTEN.radius, CMC.caramel); lineTarget.show(P.pos, P.yaw, c.distanceTo(_v1.copy(P.pos).setY(0)), 0.3, 0.3); }
+    else if (P.targeting === 'sk') { const c = groundTarget(AB.sk.range * SU, 3); circleTarget.show(c, CM_SKY.radius, CMC.fire); lineTarget.show(P.pos, P.yaw, c.distanceTo(_v1.copy(P.pos).setY(0)), 0.3, 0.3); }
   },
-  armed(id) { return (id === 'cf' && CM.form === 'roll') || (id === 'cr' && CM.form === 'rage') || (id === 'ch' && !!(CM.pick || CM.horror)); },
+  armed(id) { return (id === 'cf' && CM.form === 'roll') || (id === 'cr' && CM.form === 'rage') || (id === 'hr' && !!(CM.pick || CM.horror)) || (!!CM.act && CM.act.id === id); },
   cdHidden(id) { return id === 'cf'; },
-  stack(id) { return id === 'dm' && CM.mines.length ? String(CM.mines.length) : ''; },
+  // Chomp shows how many enemies are food (3 Crumbs) right now
+  stack(id) { if (id !== 'cp') return ''; let n = 0; for (const c of CM.crumbs.values()) if (c.n >= CM_CRUMB.max) n++; return n ? `${n}🍪` : ''; },
   buffs() {
     return [
       { icon: 'cm_eat', on: true, n: '', t: `${Math.max(0, Math.ceil(CM.eatT))}s` },
       { icon: 'cm_rage', on: CM.form === 'rage' && CM.rage, n: '', t: CM.rage ? Math.ceil(CM_RAGE.dur - CM.rage.t) + 's' : '' },
-      { icon: 'cm_roll', on: CM.form === 'roll', n: '', t: '' },
+      { icon: CM.roll && CM.roll.coat > 0 ? 'cm_coat' : 'cm_roll', on: CM.form === 'roll', n: '', t: CM.roll && CM.roll.coat > 0 ? Math.ceil(CM.roll.coat) + 's' : '' },
     ];
   },
   onDummyDeath(d, p) { cmBurst(p.clone().setY(1.2), 0.7, { distort: false }); cmChips(p.clone().setY(1), 10, 0.9); },
@@ -1041,12 +1862,34 @@ registerGod({
     const glow = (fn, col = '#ffb35a', blur = 16) => glowText(ctx, fn, col, blur);
     const cookie = (x, y, r, col = '#c98a3e') => { ctx.fillStyle = col; ctx.beginPath(); for (let i = 0; i <= 24; i++) { const a = (i / 24) * TAU, rr = r * (0.94 + 0.06 * Math.sin(i * 3.7)); ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } ctx.fill(); ctx.fillStyle = '#3a1806'; for (const [cx, cy, cr] of [[-0.35, -0.3, 0.14], [0.3, -0.2, 0.12], [0.05, 0.25, 0.15], [-0.3, 0.3, 0.1], [0.38, 0.32, 0.1], [0.0, -0.05, 0.09]]) { ctx.beginPath(); ctx.arc(x + cx * r, y + cy * r, cr * r, 0, TAU); ctx.fill(); } };
     const face = (x, y, r) => { cookie(x, y, r); ctx.fillStyle = '#ff6a10'; for (const s of [-1, 1]) { ctx.beginPath(); ctx.moveTo(x + s * r * 0.15, y - r * 0.25); ctx.lineTo(x + s * r * 0.5, y - r * 0.38); ctx.lineTo(x + s * r * 0.42, y - r * 0.12); ctx.closePath(); ctx.fill(); } ctx.beginPath(); ctx.moveTo(x - r * 0.5, y + r * 0.15); for (let i = 0; i <= 8; i++) ctx.lineTo(x - r * 0.5 + i * r * 0.125, y + r * (i % 2 ? 0.42 : 0.2)); ctx.lineTo(x + r * 0.5, y + r * 0.15); ctx.quadraticCurveTo(x, y + r * 0.7, x - r * 0.5, y + r * 0.15); ctx.fill(); };
+    const blade = (x, y, ang, len) => { ctx.save(); ctx.translate(x, y); ctx.rotate(ang); ctx.fillStyle = '#2a1206'; ctx.fillRect(-S * 0.035, -len, S * 0.07, len); ctx.fillStyle = '#ff6a10'; ctx.fillRect(-S * 0.015, -len, S * 0.03, len * 0.95); ctx.restore(); };
     if (id === 'passive' || id === 'cm_eat') { iconBase(ctx, S, '#8a4a14', '#200a02'); glow(() => { cookie(S * 0.5, S * 0.52, S * 0.3); ctx.fillStyle = '#200a02'; ctx.beginPath(); ctx.arc(S * 0.78, S * 0.3, S * 0.13, 0, TAU); ctx.fill(); }); }
-    else if (id === 'cc') { iconBase(ctx, S, '#9a4a10', '#200802'); glow(() => { ctx.strokeStyle = 'rgba(255,170,80,0.8)'; ctx.lineWidth = S * 0.05; for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.moveTo(S * 0.08, S * (0.4 + i * 0.12)); ctx.lineTo(S * 0.35, S * (0.4 + i * 0.12)); ctx.stroke(); } cookie(S * 0.62, S * 0.52, S * 0.27); }); }
+    else if (id === 'cp') {   // the jaws: two half-cookies gaping, chocolate fangs
+      iconBase(ctx, S, '#9a4a10', '#200802');
+      glow(() => {
+        for (const [y0, s] of [[S * 0.42, -1], [S * 0.6, 1]]) {
+          ctx.save(); ctx.beginPath(); ctx.rect(0, s < 0 ? 0 : y0, S, s < 0 ? y0 : S - y0); ctx.clip(); cookie(S * 0.5, y0 + s * S * 0.02, S * 0.3); ctx.restore();
+          ctx.fillStyle = '#f2e2c8'; for (let i = 0; i < 6; i++) { const x = S * (0.26 + i * 0.096); ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x + S * 0.048, y0); ctx.lineTo(x + S * 0.024, y0 - s * S * 0.09); ctx.closePath(); ctx.fill(); }
+        }
+        ctx.fillStyle = '#ff5a10'; for (const sx of [0.38, 0.62]) { ctx.beginPath(); ctx.arc(S * sx, S * 0.26, S * 0.035, 0, TAU); ctx.fill(); }
+      }, '#ff8a20');
+    }
     else if (id === 'cf' || id === 'cm_roll') { iconBase(ctx, S, '#7a4a18', '#1a0a02'); glow(() => { cookie(S * 0.5, S * 0.48, S * 0.3); ctx.strokeStyle = '#ffd08a'; ctx.lineWidth = S * 0.04; ctx.beginPath(); ctx.arc(S * 0.5, S * 0.48, S * 0.4, -0.4, 1.6); ctx.stroke(); ctx.fillStyle = 'rgba(200,140,70,0.8)'; for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.arc(S * (0.12 + i * 0.05), S * (0.86 - (i % 2) * 0.04), S * 0.025, 0, TAU); ctx.fill(); } }); }
-    else if (id === 'dm') { iconBase(ctx, S, '#8a3a10', '#1a0602'); glow(() => { ctx.fillStyle = '#e8b46a'; ctx.beginPath(); ctx.ellipse(S * 0.5, S * 0.62, S * 0.3, S * 0.18, 0, 0, TAU); ctx.fill(); cookie(S * 0.5, S * 0.58, S * 0.2); ctx.strokeStyle = '#3a2412'; ctx.lineWidth = S * 0.035; ctx.beginPath(); ctx.moveTo(S * 0.5, S * 0.42); ctx.quadraticCurveTo(S * 0.55, S * 0.28, S * 0.66, S * 0.22); ctx.stroke(); ctx.fillStyle = '#ffd040'; ctx.beginPath(); ctx.arc(S * 0.68, S * 0.2, S * 0.05, 0, TAU); ctx.fill(); }, '#ff8a20'); }
-    else if (id === 'cr' || id === 'cm_rage') { iconBase(ctx, S, '#a0300a', '#200402'); glow(() => { for (const s of [-1, 1]) { ctx.save(); ctx.translate(S * 0.5, S * 0.55); ctx.rotate(s * 0.65); ctx.fillStyle = '#2a1206'; ctx.fillRect(-S * 0.04, -S * 0.42, S * 0.08, S * 0.5); ctx.fillStyle = '#ff6a10'; ctx.fillRect(-S * 0.02, -S * 0.44, S * 0.04, S * 0.5); ctx.restore(); } face(S * 0.5, S * 0.5, S * 0.17); }, '#ff5a10', 18); }
-    else if (id === 'ch') { iconBase(ctx, S, '#5a0a06', '#0a0000'); glow(() => face(S * 0.5, S * 0.5, S * 0.34), '#ff2a10', 20); }
+    else if (id === 'cm_coat') { iconBase(ctx, S, '#7a2a08', '#1a0602'); glow(() => { cookie(S * 0.5, S * 0.48, S * 0.3, '#3a1808'); ctx.fillStyle = '#ff6a10'; for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.ellipse(S * (0.3 + i * 0.13), S * 0.8, S * 0.04, S * 0.08, 0, 0, TAU); ctx.fill(); } }, '#ff5a10'); }
+    else if (id === 'mo') {   // the molten pool with a cookie bursting into it
+      iconBase(ctx, S, '#6a2a08', '#140402');
+      glow(() => {
+        ctx.fillStyle = '#3a1608'; ctx.beginPath(); ctx.ellipse(S * 0.5, S * 0.7, S * 0.38, S * 0.15, 0, 0, TAU); ctx.fill();
+        ctx.fillStyle = '#ff7a20'; for (const [x, y, r] of [[0.36, 0.7, 0.04], [0.58, 0.66, 0.05], [0.66, 0.74, 0.03]]) { ctx.beginPath(); ctx.arc(S * x, S * y, S * r, 0, TAU); ctx.fill(); }
+        cookie(S * 0.5, S * 0.4, S * 0.2);
+        ctx.fillStyle = '#4a1e0a'; for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.ellipse(S * (0.3 + i * 0.1), S * (0.56 - (i % 2) * 0.05), S * 0.03, S * 0.06, 0, 0, TAU); ctx.fill(); }
+      }, '#ff6a10');
+    }
+    else if (id === 'cr' || id === 'cm_rage') { iconBase(ctx, S, '#a0300a', '#200402'); glow(() => { for (const s of [-1, 1]) blade(S * 0.5, S * 0.55, s * 0.65, S * 0.44); face(S * 0.5, S * 0.5, S * 0.17); }, '#ff5a10', 18); }
+    else if (id === 'bx') { iconBase(ctx, S, '#b0380a', '#240402'); glow(() => { ctx.strokeStyle = '#ffb040'; ctx.lineWidth = S * 0.05; for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(S * 0.5, S * (s < 0 ? 0.9 : 0.1), S * 0.55, s < 0 ? -2.3 : 0.84, s < 0 ? -0.84 : 2.3); ctx.stroke(); } for (const s of [-1, 1]) blade(S * 0.5, S * 0.8, s * 0.75, S * 0.5); }, '#ff5a10', 18); }
+    else if (id === 'mh') { iconBase(ctx, S, '#902808', '#200402'); glow(() => { ctx.fillStyle = '#ff6a10'; for (const s of [-1, 1]) { ctx.beginPath(); ctx.moveTo(S * (0.5 + s * 0.12), S * 0.9); ctx.lineTo(S * (0.5 + s * 0.2), S * 0.35); ctx.lineTo(S * (0.5 + s * 0.16), S * 0.35); ctx.lineTo(S * (0.5 + s * 0.06), S * 0.9); ctx.closePath(); ctx.fill(); } face(S * 0.5, S * 0.32, S * 0.15); ctx.strokeStyle = '#ffd08a'; ctx.lineWidth = S * 0.03; for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.moveTo(S * (0.2 + i * 0.3), S * 0.12); ctx.lineTo(S * (0.2 + i * 0.3), S * 0.22); ctx.stroke(); } }, '#ff5a10', 18); }
+    else if (id === 'sk') { iconBase(ctx, S, '#a03008', '#200402'); glow(() => { ctx.fillStyle = '#3a1406'; ctx.beginPath(); ctx.ellipse(S * 0.5, S * 0.82, S * 0.36, S * 0.1, 0, 0, TAU); ctx.fill(); ctx.strokeStyle = '#ff7a20'; ctx.lineWidth = S * 0.035; ctx.beginPath(); ctx.ellipse(S * 0.5, S * 0.82, S * 0.4, S * 0.12, 0, 0, TAU); ctx.stroke(); blade(S * 0.5, S * 0.12, Math.PI, S * 0.62); }, '#ff5a10', 18); }
+    else if (id === 'hr') { iconBase(ctx, S, '#5a0a06', '#0a0000'); glow(() => face(S * 0.5, S * 0.5, S * 0.34), '#ff2a10', 20); }
     else return false;
     return true;
   },

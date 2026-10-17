@@ -240,7 +240,9 @@ class LocoState {
     return true;
   }
   // twist, chest stabilisation, lean and style: after the pose is written, before cast twists and glances
-  torso(dt, castW) {
+  // castW: the cast layers' weight (they bring their own chest); steadyW (optional): of that, the share of chained basic-attack
+  // swings, which keep the pelvis-twist counter so the chest stays on the aim while the legs run (07b_rig.js RigAnimator.swing)
+  torso(dt, castW, steadyW = 0) {
     const a = this.a, rig = a.ch, cfg = this.cfg, mw = a.moveW * (1 - a.dashW) * (1 - a.jumpW * 0.6);
     const up = _ra.up, yaw = rig.root.rotation.y, cs = Math.cos(yaw), sn = Math.sin(yaw);
     // pelvis: a small turn toward the travel (backward travel folds onto the front half)
@@ -256,8 +258,8 @@ class LocoState {
     rotateBoneWorld(rig.hips, up, tw);
     rig.hips.updateMatrixWorld(true);
     // the spine brings the chest back onto the aim
-    const keep = 1 - castW;
-    const counter = (-wrapAngle(iy.c) * mw - wrapAngle(this.cMean - iy.c) * mc - tw) * keep;
+    const keep = 1 - castW, keepTw = Math.min(1, keep + steadyW);
+    const counter = (-wrapAngle(iy.c) * mw - wrapAngle(this.cMean - iy.c) * mc) * keep - tw * keepTw;
     for (const [bn, k] of [['Spine02', 0.4], ['Spine01', 0.35], ['Spine', 0.25]]) { const b = rig.b(bn); rotateBoneWorld(b, up, counter * k); b.updateMatrixWorld(true); }
     // calm: take out part of the run cycle's shoulder swing (low-passed yaw of the shoulder line as reference)
     const calm = (cfg.calm ?? 0.55) * mw * keep;

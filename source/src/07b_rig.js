@@ -172,9 +172,12 @@ const GOD_RIG = {
     loco: { mode: 'run', lean: 9 * DEG, twistW: 0.15, twistR: 0.25, maxTwist: 25 * DEG, calm: 0.55, width: 0.7, crouch: 0.035, lift: 1.1, fx: 'sand' },
     acts: {
       ...COMMON_ACTS,
-      claw1: { clip: 'combo3', from: 0.18, to: 0.78, rate: 1.7, fadeIn: 0.04, fadeOut: 0.2, full: 0.65, yaw: 18 },
-      claw2: { clip: 'combo3', from: 0.62, to: 1.32, rate: 1.75, fadeIn: 0.04, fadeOut: 0.2, full: 0.65, yaw: 18 },
-      claw3: { clip: 'combo3', from: 2.05, to: 2.85, rate: 1.65, fadeIn: 0.04, fadeOut: 0.25, full: 0.7, yaw: 10 },
+      // the basic-attack chain (RigAnimator.swing; hit = the clip time the claws pass through the target): left_slash = Meshy
+      // "Left_Slash" (a rising slash, then the backhand cut down the other way, one flowing into the next), cross = "Charged_Slash"
+      // (arms crossed, then torn apart: the X-slash finisher; retargeted from cookie_rage__cross.glb, add_clips --fit)
+      claw1: { clip: 'left_slash', from: 0.45, hit: 0.78, to: 1.1, rate: 1.35, fadeIn: 0.16, fadeOut: 0.3, full: 0.8, yaw: -25, chain: true },
+      claw2: { clip: 'left_slash', from: 1.07, hit: 1.3, to: 1.62, rate: 1.35, fadeIn: 0.16, fadeOut: 0.3, full: 0.8, yaw: 0, chain: true },
+      claw3: { clip: 'cross', from: 0.62, hit: 1.22, to: 1.7, rate: 1.35, fadeIn: 0.2, fadeOut: 0.35, full: 0.85, yaw: 25, chain: true },
       pounce: { clip: 'jump_punch', keys: [[0, 0.25], [0.12, 0.5], [0.42, 0.7], [0.62, 0.74]], fadeIn: 0.03, fadeOut: 0.12, full: 1, yaw: 0, rootFix: true },
       flip: { clip: 'backflip', keys: [[0, 0.8], [0.52, 1.95], [0.72, 2.45]], fadeIn: 0.04, fadeOut: 0.18, full: 1, yaw: 0, rootFix: true },
       whip: { clip: 'left_slash', from: 0.75, to: 1.8, rate: 1.55, fadeIn: 0.05, fadeOut: 0.25, full: 0.85, yaw: 20 },
@@ -224,9 +227,12 @@ const GOD_RIG = {
     loco: { mode: 'run', lean: 5 * DEG, twistW: 0.15, twistR: 0.22, maxTwist: 22 * DEG, calm: 0.35, upright: 0.2, width: 1.25, waddle: 5 * DEG, belly: 2.5 * DEG, fx: 'wine' },
     acts: {
       ...COMMON_ACTS,
-      swing1: { clip: 'combo3', from: 0.3, to: 0.9, rate: 1.6, fadeIn: 0.05, fadeOut: 0.22, full: 0.65, yaw: 14 },
-      swing2: { clip: 'combo3', from: 0.82, to: 1.34, rate: 1.6, fadeIn: 0.05, fadeOut: 0.22, full: 0.65, yaw: 14 },
-      smash: { clip: 'slam', from: 1.0, to: 2.1, rate: 2.4, fadeIn: 0.06, fadeOut: 0.3, full: 0.8, yaw: 0 },
+      // the basic-attack chain (RigAnimator.swing): wcombo = Meshy "Weapon_Combo" (a rising backhand, then the forehand sweep
+      // back across, one flowing out of the other; retargeted from cookie_rage__wcombo.glb, add_clips --fit), then the jug brought
+      // down two-handed from over his head (hammer = "Heavy_Hammer_Swing")
+      swing1: { clip: 'wcombo', from: 0.3, hit: 0.7, to: 1.0, rate: 1.15, fadeIn: 0.18, fadeOut: 0.32, full: 0.8, yaw: -20, chain: true },
+      swing2: { clip: 'wcombo', from: 0.95, hit: 1.3, to: 1.62, rate: 1.15, fadeIn: 0.18, fadeOut: 0.32, full: 0.8, yaw: 15, chain: true },
+      smash: { clip: 'hammer', from: 0.62, hit: 1.6, to: 1.86, rate: 1.4, fadeIn: 0.2, fadeOut: 0.4, full: 0.9, yaw: -20, chain: true, maxK: 1.9 },
       chug: { clip: 'drink_m', keys: [[0, 2.2], [0.55, 3.9], [0.95, 4.7], [1.3, 5.6]], fadeIn: 0.12, fadeOut: 0.3, full: 0.4, yaw: 0 },
       // the belly flop: arms swing up over his head while the kit pitches the whole body into a dive
       flop: { clip: 'slam', keys: [[0, 0.5], [0.25, 0.95], [0.75, 1.2], [1.25, 1.2]], fadeIn: 0.05, fadeOut: 0.35, full: 1, yaw: 0, rootFix: true },   // (Arena bots)
@@ -258,9 +264,10 @@ const GOD_RIG = {
       volley: { clip: 'cast_overhead', from: 0.42, to: 1.5, rate: 1.4, fadeIn: 0.12, fadeOut: 0.35, full: 0.8, yaw: 0 },
       expose: { clip: 'charged', from: 0.2, to: 1.3, rate: 1.2, fadeIn: 0.14, fadeOut: 0.35, full: 1, yaw: 0 },
       // axes: axecombo = "Weapon Combo 2" (three chops ~0.9 / 2.0 / 3.0 s), axechop = "Charged Axe Chop"
-      chop1: { clip: 'axecombo', from: 0.47, to: 1.3, rate: 1.8, fadeIn: 0.09, fadeOut: 0.26, full: 0.65, yaw: 12 },
-      chop2: { clip: 'axecombo', from: 1.56, to: 2.4, rate: 1.8, fadeIn: 0.09, fadeOut: 0.26, full: 0.65, yaw: 12 },
-      chop3: { clip: 'axecombo', from: 2.66, to: 3.6, rate: 1.7, fadeIn: 0.09, fadeOut: 0.3, full: 0.7, yaw: 8 },
+      // (chain swings, RigAnimator.swing; hit = the clip time the axe passes through the target: 1.12 / 1.98 / 3.05)
+      chop1: { clip: 'axecombo', from: 0.5, hit: 1.12, to: 1.5, rate: 1.5, fadeIn: 0.18, fadeOut: 0.3, full: 0.8, yaw: -25, chain: true },
+      chop2: { clip: 'axecombo', from: 1.5, hit: 1.98, to: 2.45, rate: 1.5, fadeIn: 0.18, fadeOut: 0.3, full: 0.8, yaw: -5, chain: true },
+      chop3: { clip: 'axecombo', from: 2.45, hit: 3.05, to: 3.5, rate: 1.4, fadeIn: 0.2, fadeOut: 0.35, full: 0.85, yaw: 0, chain: true },
       axethrow: { clip: 'cast_throw', from: 0.72, to: 1.78, rate: 1.35, fadeIn: 0.09, fadeOut: 0.32, full: 0.85, yaw: 14 },
       invig: { clip: 'shout', from: 1.55, to: 2.55, rate: 1.0, fadeIn: 0.14, fadeOut: 0.35, full: 1, yaw: 0 },
       // Glory Bound: crouch (0-0.14 s, he is still on the ground), rise, axes overhead in the air, the chop lands at 0.86 s (UL_LEAP)
@@ -308,6 +315,10 @@ const GOD_RIG = {
       roar: { clip: 'scream', from: 0.52, to: 2.2, rate: 1.15, fadeIn: 0.12, fadeOut: 0.35, full: 1, yaw: 0 },
       eat: { clip: 'drink', keys: [[0, 2.2], [0.5, 3.9], [1.2, 4.7], [1.6, 5.6]], fadeIn: 0.15, fadeOut: 0.35, full: 0, yaw: 0 },
       clapwind: { clip: 'hammer', keys: [[0, 0.31], [0.3, 0.9], [0.45, 1.05]], fadeIn: 0.08, fadeOut: 0.2, full: 1, yaw: 0 },
+      // v4: chomp = Meshy 132 "mage_soell_cast_3" (a two-handed lunge, the hands slam together forward ~1.05 s = the bite);
+      // clap = Meshy 130 "mage_soell_cast_1" (arms flung wide 1.5-2.2 s, then brought together, hands meet ~2.68 s) for Cookie Horror
+      chomp: { clip: 'chomp', from: 0.15, to: 1.75, rate: 1.9, fadeIn: 0.07, fadeOut: 0.3, full: 1, yaw: 0, rootFix: true },
+      clap: { clip: 'clap', keys: [[0, 1.45], [0.22, 1.7], [0.4, 2.2], [0.62, 2.68], [1.3, 3.3]], fadeIn: 0.06, fadeOut: 0.35, full: 1, yaw: 0, rootFix: true },
     },
     fx: 'caramel', prop: 'cookie', propL: 'cookieS', channel: { clip: 'charged', legs: 'stand', lift: 0 },
   },
@@ -341,6 +352,10 @@ const GOD_RIG = {
       rs4: { clip: 'combo', from: 0.1, to: 1.0, rate: 1.4, fadeIn: 0.14, fadeOut: 0.32, full: 0.55, yaw: 8 },
       roar: { clip: 'warcry', from: 0.45, to: 3.0, rate: 1.05, fadeIn: 0.2, fadeOut: 0.5, full: 1, yaw: 0 },   // the transform: the sword thrust to the sky
       roar2: { clip: 'roar', from: 0.9, to: 1.9, rate: 1.1, fadeIn: 0.25, fadeOut: 0.4, full: 0.15, yaw: 0 },   // the periodic roar (only between swings)
+      // v4 rage abilities: cross = Meshy 242 "Charged_Slash" (blades crossed at ~1.05 s, torn apart ~1.25 s: Burning Cross);
+      // sky = Meshy 102 "Sword_Judgment" (crouch, leap ~0.6-1.0 s, crashing down ~1.3 s: Skyfall), time-warped for a long flight
+      cross: { clip: 'cross', from: 0.2, to: 2.1, rate: 1.7, fadeIn: 0.12, fadeOut: 0.35, full: 1, yaw: 0, rootFix: true },
+      sky: { clip: 'skyfall', keys: [[0, 0.1], [0.3, 0.55], [0.42, 0.72], [1.02, 0.95], [1.16, 1.3], [1.75, 1.85]], fadeIn: 0.1, fadeOut: 0.4, full: 1, yaw: 0, rootFix: true },
     },
     fx: 'caramel', channel: { clip: 'charged', legs: 'stand', lift: 0 },
     props: [{ key: 'swordR', kind: 'csword', bone: 'RightHand' }, { key: 'swordL', kind: 'csword', bone: 'LeftHand' }],
@@ -1125,11 +1140,16 @@ class RigAnimator {
     if (name === 'dash') { this.dash = { t: 0, dur: opts.dur ?? 0.3, dx: opts.dx || 0, dz: opts.dz ?? 1 }; return; }
     if (name === 'wrath') { this.play('rage'); this.wrathT = 0; }
     const def = this.acts[name]; if (!def) return;
-    this.actions = this.actions.filter((a) => a.name !== name);
+    // (an ability takes the arms back from a casting gesture still lingering in its guard: it melts away quickly underneath)
+    if (!def.chain && !def.lowerOnly && this.gests) for (const g of this.gests) { const e = g.K[g.K.length - 1].t; g.hold = Math.max(0, Math.min(g.hold, g.t - e)); g.out = Math.min(g.out, 0.16); }
+    // (a chained basic-attack swing played again lets its previous run fade out underneath instead of vanishing: no pop)
+    if (def.chain) { for (const a of this.actions) if (a.name === name) a.name = name + '~'; } else this.actions = this.actions.filter((a) => a.name !== name);
     let rate = (def.rate || 1) * (opts.speed || 1);
     if (opts.dur && !def.keys) rate = Math.max(def.rate, ((def.to - def.from) / opts.dur) * 0.7);
-    const len = def.keys ? def.keys[def.keys.length - 1][0] / (opts.speed || 1) : (def.to - def.from) / rate;
-    this.actions.push({ name, def, t: -(def.delay || 0), rate, len, weight: opts.weight ?? def.weight ?? 1, speed: opts.speed || 1 });
+    // opts.keys: a time warp for this one run (chain swings, RigAnimator.swing), in real seconds
+    const keys = opts.keys || def.keys, ks = opts.keys ? 1 : (opts.speed || 1);
+    const len = keys ? keys[keys.length - 1][0] / ks : (def.to - def.from) / rate;
+    this.actions.push({ name, def, keys: opts.keys || null, t: -(def.delay || 0), rate, len, weight: opts.weight ?? def.weight ?? 1, speed: ks });
     if (!def.lowerOnly && name !== 'laugh' && name !== 'rage' && name !== 'wrath' && !opts.noFx) this.castFx(name, opts.side);
   }
   stop(name) { this.actions = this.actions.filter((a) => a.name !== name); }
@@ -1138,7 +1158,9 @@ class RigAnimator {
     const d = act.def;
     if (act.holdAt !== undefined) return act.holdW * (1 - smoothstep(act.holdAt, act.holdAt + (d.fadeOut || 0.3), act.t));
     const tn = act.t / act.len;
-    return Math.min(smoothstep(0, d.fadeIn / act.len, tn), 1 - smoothstep(1 - d.fadeOut / act.len, 1, tn)) * act.weight;
+    // (a chain swing lingering after its follow-through relaxes half-way back toward the god's own pose: RigAnimator.swing)
+    const rk = act.relaxAt === undefined ? 1 : lerp(1, act.relaxK, smoothstep(act.relaxAt, act.relaxAt + 0.4, act.t));
+    return Math.min(smoothstep(0, (act.fadeIn ?? d.fadeIn) / act.len, tn), 1 - smoothstep(1 - d.fadeOut / act.len, 1, tn)) * act.weight * rk;
   }
   // keep an action at its current weight (the clip playing on) for dur seconds, then let it fade out: the next action fades
   // in over it, so a chain of swings never dips back to the idle pose in between
@@ -1150,8 +1172,8 @@ class RigAnimator {
   isPlaying(name) { return this.actions.some((a) => a.name === name); }
   clipTime(act) {
     const d = act.def;
-    if (!d.keys) return d.from + act.t * act.rate;
-    const k = d.keys, t = act.t * act.speed; let i = 0;
+    if (!d.keys && !act.keys) return d.from + act.t * act.rate;
+    const k = act.keys || d.keys, t = act.t * act.speed; let i = 0;
     while (i < k.length - 2 && t > k[i + 1][0]) i++;
     return lerp(k[i][1], k[i + 1][1], clamp((t - k[i][0]) / (k[i + 1][0] - k[i][0]), 0, 1));
   }
@@ -1226,7 +1248,7 @@ class RigAnimator {
       blendPose(P0, P0, this.tC, chW, null, rig, 0);
     }
     // ---- cast layers
-    let fullYaw = 0, upperYaw = 0, rage = 0, castW = 0, legCast = 0;
+    let fullYaw = 0, upperYaw = 0, rage = 0, castW = 0, legCast = 0, steadyW = 0;
     this.rootMoveLocal.set(0, 0, 0);
     const standing = 1 - this.moveW;
     this.bookOff.set(0, 0, 0);
@@ -1281,6 +1303,7 @@ class RigAnimator {
       this.tC.p[0] = lerp(rig.rest.p[0], this.tC.p[0], keep); this.tC.p[2] = lerp(rig.rest.p[2], this.tC.p[2], keep);
       blendPose(P0, P0, this.tC, w, mask, rig, w * fullK);
       castW = Math.max(castW, w); legCast = Math.max(legCast, w * fullK);
+      if (d.chain) steadyW = Math.max(steadyW, w);   // (a chain swing keeps the chest on the aim while the pelvis turns with the run)
       fullYaw += (d.yaw * DEG) * w * fullK;
       upperYaw += (d.yaw * DEG) * w * (1 - fullK);
     }
@@ -1313,7 +1336,7 @@ class RigAnimator {
     // ---- additive layers in world space: twist + lean, cast twist, aim pitch, dash lean, rage tremble, head glances
     const up = _ra.up, right = _ra.v5.set(-cs, 0, sn), fwd = _ra.v6.set(sn, 0, cs);
     // pelvis turns a little toward the travel, the spine keeps the chest and head on the aim, calm torso, lean, style
-    this.loco.torso(dt, castW);
+    this.loco.torso(dt, castW, steadyW);
     rig.root.updateMatrixWorld(true);
     if (upperYaw) { rotateBoneWorld(rig.b('Spine02'), up, upperYaw * 0.5); rig.b('Spine02').updateMatrixWorld(true); rotateBoneWorld(rig.b('Spine01'), up, upperYaw * 0.5); }
     rig.root.updateMatrixWorld(true);
@@ -1344,7 +1367,7 @@ class RigAnimator {
     }
     const gk = 1 - Math.exp(-12 * dt);
     g.cx += (g.x - g.cx) * gk; g.cy += (g.y - g.cy) * gk;
-    const busy = Math.max(chW, this.rageW, ...this.actions.map((a) => (a.t > 0 ? a.def.full : 0))) || 0;
+    const busy = Math.max(chW, this.rageW, this.gestW || 0, ...this.actions.map((a) => (a.t > 0 ? a.def.full : 0))) || 0;
     const glW = (1 - this.moveW * 0.75) * (1 - busy) * (this.noGlance ? 0 : 1);
     rotateBoneWorld(rig.b('Head'), up, g.cy * glW);
     rotateBoneWorld(rig.b('Head'), right, (g.cx * glW) - this.aimPitch * 0.25);
@@ -1352,6 +1375,8 @@ class RigAnimator {
     // ---- legs: two-bone IK onto the warped, speed-matched foot paths (planted feet, no sliding)
     this.loco.feet(this.moveW * (1 - this.jumpW) * (1 - this.dashW) * (1 - chW) * (1 - legCast));
     // ---- a kit's procedural layer on top of everything (Ullr's clown dance), in world space
+    // ---- procedural casting gestures (the mages' and Skadi's basic attacks): chest twist + an IK arm on top of everything
+    if (this.gests && this.gests.length) this.applyGestures(dt);
     if (this.post) this.post(rig, dt, this);
 
     // ---- Thoth: the left hand holds the open book (two-bone IK + palm orientation), unless it floats
@@ -1557,6 +1582,217 @@ class RigAnimator {
     }
     book.update(dt);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Basic-attack chains (Thoth, Skadi, Bastet, Hecate, Ra, Bacchus, Ullr; Cookie Monster's kit drives its own swings)
+// 1) Clip swings: acts with chain: true and hit = the clip time of the strike. RigAnimator.swing(name, cd) plays the swing's
+//    whole wind-up, strike and follow-through; the previous swing is held under it while it fades in, so every swing grows
+//    out of the last one's follow-through (never out of the idle). At a high attack speed the wind-up is compressed (up to
+//    maxK x; the strike itself keeps most of its natural speed) and the follow-through is cut short by the next swing,
+//    instead of the whole clip being sped into a blur. Returns the real time of the strike: the kit lands its hit then.
+// 2) Casting gestures (GESTURES): the mages' bolts and Skadi's javelins are thrown by a keyed hand path in the aim frame
+//    (anticipation -> release -> follow-through), reached with two-bone IK on top of whatever the body is doing (standing,
+//    running, strafing), with a chest twist and lean that carry the throw and a head that stays on the target. The bolt
+//    leaves the hand at the release key (RigAnimator.castPoint). Each gesture starts from where the hand really is, so a
+//    chain of throws (alternating hands or not) flows from one into the next.
+// ---------------------------------------------------------------------------
+// keys: t (s, natural speed), p: hand [inward, up, forward] from the shoulder in arm lengths, f: finger direction,
+// n: palm direction, pole: elbow direction, tw: chest twist (rad, + = the throwing shoulder forward), ln: forward lean (rad).
+// rel: index of the release key; out: s to melt back into the god's own pose after the last key.
+const GESTURES = {
+  // a palm strike: the hand cocks back beside the shoulder (palm already toward the target), snaps out along the aim
+  flick: { rel: 1, out: 0.3, keys: [
+    { t: 0.11, p: [0.16, 0.16, -0.02], f: [0.05, 1, -0.15], n: [0.05, 0.12, 1], d: [0.1, 1, -0.15], pole: [-0.9, -0.35, -0.3], tw: -0.42, ln: -0.04 },
+    { t: 0.19, p: [0.1, 0.06, 0.97], f: [0, 1, 0.2], n: [0, -0.2, 1], d: [0, 0.75, 0.65], pole: [-0.55, -0.85, 0], tw: 0.22, ln: 0.08 },
+    { t: 0.36, p: [0.2, -0.1, 0.86], f: [0.15, 0.6, 1], n: [0.05, -0.85, 0.5], d: [0.05, 0.85, 0.5], pole: [-0.5, -0.9, 0], tw: 0.26, ln: 0.05 },
+  ] },
+  // a backhand sweep: the hand winds in to the far shoulder, then whips flat across the front and out to the side
+  sweep: { rel: 1, out: 0.3, keys: [
+    { t: 0.11, p: [0.78, 0.08, 0.22], f: [0.55, 0.75, 0.3], n: [0.6, -0.1, -0.8], d: [0.5, 0.85, 0], pole: [-0.3, -0.75, 0.6], tw: 0.36, ln: 0.0 },
+    { t: 0.19, p: [-0.02, 0.04, 0.97], f: [-0.2, 0.9, 0.35], n: [-0.25, -0.3, 1], d: [-0.2, 0.75, 0.6], pole: [-0.6, -0.8, 0], tw: -0.08, ln: 0.07 },
+    { t: 0.36, p: [-0.62, -0.06, 0.66], f: [-0.75, 0.4, 0.55], n: [-0.4, -0.7, 0.6], d: [-0.5, 0.8, 0.3], pole: [-0.5, -0.8, -0.3], tw: -0.3, ln: 0.04 },
+  ] },
+  // a staff thrust: the fist drawn back to the hip, then driven straight out along the aim (Ra's sun staff leads with its disc)
+  thrust: { rel: 1, out: 0.3, keys: [
+    { t: 0.11, p: [0.06, -0.42, -0.12], f: [0.1, -0.2, 1], n: [0.6, 0.6, 0], d: [0, 0.55, 0.85], pole: [-0.6, -0.4, -0.7], tw: -0.38, ln: -0.03 },
+    { t: 0.19, p: [0.12, -0.04, 0.97], f: [0.05, 0.3, 1], n: [0.6, 0.7, 0], d: [0, 0.35, 1], pole: [-0.6, -0.8, 0], tw: 0.24, ln: 0.09 },
+    { t: 0.36, p: [0.16, -0.14, 0.88], f: [0.1, 0.1, 1], n: [0.6, 0.7, 0], d: [0, 0.5, 0.9], pole: [-0.55, -0.85, 0], tw: 0.26, ln: 0.05 },
+  ] },
+  // the heavy third: a hurl from high over the shoulder, the whole torso coming down behind it
+  hurl: { rel: 1, out: 0.36, keys: [
+    { t: 0.15, p: [-0.04, 0.52, -0.2], f: [0, 0.8, -0.6], n: [0.1, 0.6, 0.8], d: [0.12, 0.9, -0.42], pole: [-0.8, 0.15, -0.6], tw: -0.48, ln: -0.1 },
+    { t: 0.25, p: [0.1, 0.0, 0.97], f: [0, 0.75, 0.65], n: [0, -0.65, 0.75], d: [0, 0.45, 0.9], pole: [-0.5, -0.85, 0], tw: 0.26, ln: 0.16 },
+    { t: 0.45, p: [0.26, -0.34, 0.72], f: [0.15, -0.25, 1], n: [0.1, -1, -0.2], d: [0.1, 0.3, 1], pole: [-0.45, -0.9, 0], tw: 0.32, ln: 0.11 },
+  ] },
+};
+// d: where a held rod (Ra's staff, Skadi's spear, Hecate's sceptre and torch) points; such a hand is turned by its rod instead
+// between throws the hand settles into a loose guard in front of the chest (held a moment, so a chain never drops to the
+// idle and lifts again; then it melts back into the god's own pose)
+const GEST_GUARD = { p: [0.3, -0.5, 0.45], f: [0.25, 0.35, 1], n: [0.15, -1, 0.3], d: [0.1, 1, 0.2], pole: [-0.55, -0.8, -0.1], tw: 0.04, ln: 0.02 };
+const _gq = { F: new THREE.Vector3(), L: new THREE.Vector3(), U: new THREE.Vector3(0, 1, 0), R: new THREE.Vector3(), I: new THREE.Vector3(),
+  a: new THREE.Vector3(), b: new THREE.Vector3(), c: new THREE.Vector3(), d: new THREE.Vector3(), q: new THREE.Quaternion() };
+const _crom = (a, b, c, d, u, k) => 0.5 * (2 * b[k] + (c[k] - a[k]) * u + (2 * a[k] - 5 * b[k] + 4 * c[k] - d[k]) * u * u + (3 * b[k] - a[k] - 3 * c[k] + d[k]) * u * u * u);
+const _nl = (a, b, u) => { const x = lerp(a[0], b[0], u), y = lerp(a[1], b[1], u), z = lerp(a[2], b[2], u), l = Math.hypot(x, y, z) || 1; return [x / l, y / l, z / l]; };
+Object.assign(RigAnimator.prototype, {
+  // a chained clip swing fitted to the attack's cycle cd (s); returns { hit, len } (real seconds) or null
+  swing(name, cd, opts = {}) {
+    const def = this.acts[name]; if (!def || def.hit === undefined) return null;
+    const r = def.rate || 1, A = (def.hit - def.from) / r, F = (def.to - def.hit) / r;
+    const Ta = Math.max(0.1, cd * (def.antK ?? 0.55)), sA = clamp(A / Ta, 1, def.maxK ?? 1.7);
+    let from = def.from;
+    if (A / sA > Ta) from = def.hit - Ta * sA * r;   // faster still: the swing starts further into its wind-up
+    const pre = def.hit - (def.hit - from) * 0.3, As = (def.hit - pre) / r, Aw = (pre - from) / r;
+    let sS = Math.min(sA, 1.25), tw = A / sA * ((def.hit - from) / (def.hit - def.from)) - As / sS;
+    if (tw < Aw / 3) { sS = sA; tw = Aw / sA; }
+    const hit = tw + As / sS, sF = clamp(1 + (sA - 1) * 0.5, 1, 1.35);
+    const keys = [[0, from], [tw, pre], [hit, def.hit], [hit + F / sF, def.to]];
+    // the follow-through lingers (the clip creeping on at a third of its speed) until the next swing is due, so a steady chain
+    // never drops back to the idle between blows; with no next swing it then fades out as usual
+    const hold = cd + 0.06 + (def.fadeOut ?? 0.3) - keys[3][0], clip = this.ch.clips[def.clip];
+    if (hold > 0.02) keys.push([keys[3][0] + hold, Math.min(def.to + hold * r * 0.33, clip ? clip.duration : def.to)]);
+    // the swing still playing holds its weight until this one has faded in over it, then fades out underneath
+    const prev = this.actions.filter((x) => x.def.chain && x.t >= 0 && x.holdAt === undefined).pop();
+    const fadeIn = Math.min(def.fadeIn ?? 0.2, hit * 0.6);
+    if (prev) this.holdUnder(prev, fadeIn * 1.15);
+    this.play(name, { keys, noFx: opts.noFx ?? true, side: opts.side });
+    const act = this.actions[this.actions.length - 1];
+    if (act && act.name === name) { act.fadeIn = fadeIn; if (keys.length > 4) { act.relaxAt = keys[3][0]; act.relaxK = def.relax ?? 0.5; } }
+    return { hit, len: keys[keys.length - 1][0] };
+  },
+  // a casting gesture on one hand (side 'R' / 'L'), fitted to the attack's cycle cd; returns the release time (s)
+  gesture(name, side = 'R', cd = 1, opts = {}) {
+    const G = GESTURES[name]; if (!G) return 0.1;
+    const arm = this.gestArm(side);
+    this.gests = this.gests || [];
+    const old = this.gests.find((g) => g.side === side);
+    // the natural timing, compressed for a fast attack: the wind-up up to 1.8x, the follow-through less
+    const Rn = G.keys[G.rel].t, Ta = Math.max(0.1, cd * (opts.antK ?? 0.5)), sA = clamp(Rn / Ta, 1, 1.8), sF = clamp(1 + (sA - 1) * 0.6, 1, 1.5);
+    const tOf = (t) => (t <= Rn ? t / sA : Rn / sA + (t - Rn) / sF);
+    const k0 = this.gestNow(side, arm, old);
+    const K = [k0, ...G.keys.map((k) => ({ t: tOf(k.t), p: k.p, f: k.f, n: k.n, d: k.d || k.f, pole: k.pole, tw: k.tw * (opts.k ?? 1), ln: k.ln * (opts.k ?? 1) }))];
+    K.push({ ...(G.guard || GEST_GUARD), t: K[K.length - 1].t + 0.26 / sF });
+    const g = { name, side, G, K, rel: G.rel + 1, t: 0, w0: old ? old.w : 0, w: old ? old.w : 0, tin: Math.min(0.08, K[1].t * 0.5), out: G.out, hold: opts.hold ?? 0.5, cur: null, arm };
+    if (old) this.gests.splice(this.gests.indexOf(old), 1);
+    this.gests.push(g);
+    if (!opts.noFx) this.castFx(name, side);   // (a ribbon of the god's magic follows the casting hand)
+    return K[g.rel].t;
+  },
+  // per arm: bones, reach and the hand-local palm axis (Meshy rigs: -X on the right hand, +X on the left; GOD_RIG palm overrides)
+  gestArm(side) {
+    const m = this._gArm || (this._gArm = {});
+    if (m[side]) return m[side];
+    const rig = this.ch, S = side === 'L' ? 'Left' : 'Right', a = rig.b(S + 'Arm'), f = rig.b(S + 'ForeArm'), h = rig.b(S + 'Hand');
+    rig.root.updateMatrixWorld(true);
+    const pa = new THREE.Vector3().setFromMatrixPosition(a.matrixWorld), pf = new THREE.Vector3().setFromMatrixPosition(f.matrixWorld), ph = new THREE.Vector3().setFromMatrixPosition(h.matrixWorld);
+    const pal = (this.cfg.palm && this.cfg.palm[side]) || (side === 'L' ? [1, 0, 0] : [-1, 0, 0]);
+    const A = { a, f, h, reach: pa.distanceTo(pf) + pf.distanceTo(ph), palm: new THREE.Vector3().fromArray(pal), memo: { q: new THREE.Quaternion(), f: -9 }, rod: 0 };
+    // a rod held in this hand: along the fingers (rod 1 / -1) or along the palm normal (rod 2 / -2)
+    const pk = side === 'L' ? this.cfg.propL : this.cfg.prop, gr = pk && PROP_GRIP[pk];
+    if (gr) {
+      const ax = new THREE.Vector3().fromArray(gr.axis).normalize(), dy = ax.y, dp = ax.dot(A.palm);
+      A.rod = Math.abs(dy) > 0.8 ? Math.sign(dy) : Math.abs(dp) > 0.8 ? 2 * Math.sign(dp) : 0;
+    }
+    return (m[side] = A);
+  },
+  // the aim frame: forward, up, and inward for that hand
+  gestFrame(side) {
+    const yaw = this.ch.root.rotation.y, cs = Math.cos(yaw), sn = Math.sin(yaw);
+    _gq.F.set(sn, 0, cs); _gq.L.set(cs, 0, -sn); _gq.R.set(-cs, 0, sn);
+    _gq.I.copy(side === 'L' ? _gq.R : _gq.L);
+    return _gq;
+  },
+  // the hand as it is now (last frame), as a gesture key
+  gestNow(side, arm, old) {
+    const Q = this.gestFrame(side), S = _gq.a.setFromMatrixPosition(arm.a.matrixWorld), H = _gq.b.setFromMatrixPosition(arm.h.matrixWorld).sub(S).divideScalar(arm.reach);
+    const toF = (v) => [v.dot(Q.I), v.dot(Q.U), v.dot(Q.F)];
+    arm.h.getWorldQuaternion(_gq.q);
+    const f = _gq.c.set(0, 1, 0).applyQuaternion(_gq.q), n = _gq.d.copy(arm.palm).applyQuaternion(_gq.q);
+    const c = old && old.cur, rd = arm.rod;
+    const d = rd === 1 ? toF(f) : rd === -1 ? toF(f).map((x) => -x) : rd === 2 ? toF(n) : rd === -2 ? toF(n).map((x) => -x) : toF(f);
+    return { t: 0, p: toF(H), f: toF(f), n: toF(n), d, pole: c ? c.pole : [-0.6, -0.8, -0.1], tw: c ? c.tw * old.w : 0, ln: c ? c.ln * old.w : 0 };
+  },
+  // a gesture's key values at its time t
+  gestEval(g) {
+    const K = g.K, n = K.length, t = g.t;
+    let i = 0; while (i < n - 2 && t > K[i + 1].t) i++;
+    let u = clamp((t - K[i].t) / Math.max(1e-4, K[i + 1].t - K[i].t), 0, 1);
+    u = i + 1 === g.rel ? Math.pow(u, 1.6) : i === g.rel ? 1 - Math.pow(1 - u, 2.2) : u * u * (3 - 2 * u);
+    const a = K[Math.max(0, i - 1)], b = K[i], c = K[i + 1], d = K[Math.min(n - 1, i + 2)];
+    const cur = g.cur || (g.cur = {});
+    cur.p = [0, 1, 2].map((k) => _crom(a.p, b.p, c.p, d.p, u, k));
+    cur.f = _nl(b.f, c.f, u); cur.n = _nl(b.n, c.n, u); cur.d = _nl(b.d, c.d, u); cur.pole = _nl(b.pole, c.pole, u);
+    cur.tw = lerp(b.tw, c.tw, u); cur.ln = lerp(b.ln, c.ln, u);
+    const end = K[n - 1].t + g.hold;
+    g.w = lerp(g.w0, 1, smoothstep(0, g.tin, t)) * (1 - smoothstep(end, end + g.out, t));
+    return cur;
+  },
+  // the release point of a hand (palm centre), world space
+  castPoint(side = 'R', out = new THREE.Vector3()) {
+    const arm = this.gestArm(side); arm.h.updateWorldMatrix(true, false);
+    arm.h.getWorldQuaternion(_gq.q);
+    return out.setFromMatrixPosition(arm.h.matrixWorld).addScaledVector(_gq.c.set(0, 1, 0).applyQuaternion(_gq.q), 0.09);
+  },
+  applyGestures(dt) {
+    const rig = this.ch;
+    let tw = 0, ln = 0, gw = 0;
+    for (const g of this.gests) {
+      g.t += dt; this.gestEval(g);
+      tw += g.cur.tw * g.w * (g.side === 'L' ? -1 : 1); ln += g.cur.ln * g.w; gw = Math.max(gw, g.w);
+    }
+    this.gests = this.gests.filter((g) => g.t < g.K[g.K.length - 1].t + g.hold + g.out);
+    this.gestW = gw;
+    const Q = this.gestFrame('R');
+    // the torso carries the throw: twist (spread up the spine) and a lean into the release; the head stays on the target
+    if (Math.abs(tw) > 1e-4 || Math.abs(ln) > 1e-4) {
+      for (const [bn, k] of [['Spine02', 0.25], ['Spine01', 0.35], ['Spine', 0.4]]) {
+        const b = rig.b(bn); rotateBoneWorld(b, Q.U, tw * k); b.updateMatrixWorld(true);
+        if (bn !== 'Spine') { rotateBoneWorld(b, Q.R, -ln * 0.5); b.updateMatrixWorld(true); }
+      }
+      const hd = rig.b('Head'); rotateBoneWorld(hd, Q.U, -tw * 0.8); rotateBoneWorld(hd, Q.R, ln * 0.6);
+      rig.root.updateMatrixWorld(true);
+    }
+    for (const g of this.gests) {
+      if (g.w < 0.002) continue;
+      const A = g.arm, c = g.cur; this.gestFrame(g.side);
+      const S = _gq.a.setFromMatrixPosition(A.a.matrixWorld);
+      const tgt = _gq.b.copy(S).addScaledVector(_gq.I, c.p[0] * A.reach).addScaledVector(_gq.U, c.p[1] * A.reach).addScaledVector(_gq.F, c.p[2] * A.reach);
+      const pole = _gq.c.set(0, 0, 0).addScaledVector(_gq.I, c.pole[0]).addScaledVector(_gq.U, c.pole[1]).addScaledVector(_gq.F, c.pole[2]);
+      solveTwoBoneIK(A.a, A.f, A.h, tgt, pole, g.w);
+      solveTwoBoneIK(A.a, A.f, A.h, tgt, pole, g.w);
+      const fing = _gq.c.set(0, 0, 0).addScaledVector(_gq.I, c.f[0]).addScaledVector(_gq.U, c.f[1]).addScaledVector(_gq.F, c.f[2]).normalize();
+      const palm = _gq.d.set(0, 0, 0).addScaledVector(_gq.I, c.n[0]).addScaledVector(_gq.U, c.n[1]).addScaledVector(_gq.F, c.n[2]);
+      if (A.rod) {   // a held rod points along d: the fingers (or the palm) follow it, the other axis keeps as near its key as it can
+        const rod = _gq.a.set(0, 0, 0).addScaledVector(_gq.I, c.d[0]).addScaledVector(_gq.U, c.d[1]).addScaledVector(_gq.F, c.d[2]).normalize();
+        if (Math.abs(A.rod) === 1) { fing.copy(rod).multiplyScalar(A.rod); }
+        else { palm.copy(rod).multiplyScalar(Math.sign(A.rod)); fing.addScaledVector(palm, -fing.dot(palm)).normalize(); }
+      }
+      palm.addScaledVector(fing, -palm.dot(fing)).normalize();
+      orientBoneWorld(A.h, fing, palm, A.palm, g.w, A.memo, this.frameNo);
+      A.h.updateMatrixWorld(true);
+    }
+  },
+});
+
+// kit helpers (the kit state they touch is the animator's own, so another player's replayed attack chains on its avatar)
+// the step of a basic-attack chain (0..n-1); a pause longer than gap starts it over
+function autoStep(anim, n = 3, gap = 1.6) {
+  const s = anim.autoS || (anim.autoS = { i: 0, at: -9 });
+  if (anim.t - s.at > gap) s.i = 0;
+  s.at = anim.t;
+  return s.i++ % n;
+}
+// a casting gesture (falls back to the plain throw on an animator without them); returns the release time (s)
+function autoCast(anim, name, side, cd, opts) {
+  if (anim && anim.gesture) return anim.gesture(name, side, cd, opts);
+  if (anim) anim.play('throw', { dur: Math.min(0.42, cd * 0.9) });
+  return 0.1;
+}
+// where the bolt leaves the casting hand at the release (kept between waist and head height)
+function autoOrigin(anim, side = 'R', out = new THREE.Vector3()) {
+  if (!anim || !anim.castPoint) return aimOrigin(out);
+  anim.castPoint(side, out); out.y = clamp(out.y, P.y + 1.0, P.y + 2.0);
+  return out;
 }
 
 // ---------------------------------------------------------------------------

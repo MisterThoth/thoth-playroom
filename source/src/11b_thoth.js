@@ -52,10 +52,10 @@ function updateHAOrbs(dt, t) {
     if (Math.random() < dt * 14) FX2.glow.spawn({ pos: o.g.position, life: rand(0.35, 0.55), size: rand(0.12, 0.2), sizeEnd: 0.02, cell: FXA.wisp, stretch: 1.2, pal: 'thoth', temp: 1, tempEnd: 0.4, int: 1.5, orbit: { c: o.g.position, r: rand(0.25, 0.4), w: rand(8, 11) * (k % 2 ? 1 : -1), y: rand(-0.15, 0.15) } });
   });
 }
-function fireHAShot() {
+function fireHAShot(from) {
   const o = P.ha.orbs.shift();
   P.ha.shots--;
-  const origin = aimOrigin();
+  const origin = from || aimOrigin();
   const dir = fwdOf(P.yaw);
   const rank = rankOf('ha');
   const castId = P.ha.cast;
@@ -230,8 +230,8 @@ function slowFx(d) {
 // ---------------------------------------------------------------------------
 // basic attacks (and the empowered / glyph variants)
 // ---------------------------------------------------------------------------
-function fireBasic() {
-  const origin = aimOrigin(), dir = fwdOf(P.yaw);
+function fireBasic(o) {
+  const origin = o || aimOrigin(), dir = fwdOf(P.yaw);
   const g = new THREE.Group(); scene.add(g);
   const core = glowSprite(VFX.dotTex, COL.glyph, 0.6, 3); g.add(core);
   const glyph = glowSprite(atlasCellTexture(VFX.glyphTex, VFX.glyphCell()), COL.glyphHot, 0.38, 2.4); g.add(glyph);
@@ -519,8 +519,8 @@ function updateWaves(dt, t) {
 // ---------------------------------------------------------------------------
 const FS = { rise: 0.45, open: 0.9, impact: 4.2, descend: 5.0, land: 5.85, end: 7.0, R: 13, apex: 8.4 };
 // when "Judgement" lands in "The final spell... Judgement." (each Thoth voice, measured on the processed lines)
-const FS_VOX = { thoth: 1.765 };   // v13 (Alistair): the vowel of JUDGEMENT
-const FJ_WRITTEN = 0.855;          // v13: "It is... WRITTEN!" - the word's onset in fj_fire
+const FS_VOX = { thoth: 2.05 };   // v15 (Caspian, wrath): the vowel of JUDGEMENT
+const FJ_WRITTEN = 1.275;          // v15: "It is... WRITTEN!" - the word's onset in fj_fire
 const FJ_LEAD = FJ_WRITTEN;        // the whole line starts so that WRITTEN lands on the release
 const FS_DEEP = new THREE.Color(0.02, 0.22, 1.0), FS_HOT = new THREE.Color(0.4, 0.92, 1.0), FS_GOLD = new THREE.Color(1.0, 0.68, 0.18);
 let FS_ROCK = null;
@@ -826,11 +826,14 @@ registerGod({
   basic() {
     if (P.ep.dash || P.fj || P.spell) return;
     P.atkCd = 1 / attackSpeed();
-    if (P.ep.ready > 0) { Game.anim.play('empower'); VFX.later(0.1, fireEmpowered); return; }
-    Game.anim.play('throw', { dur: Math.min(0.42, P.atkCd * 0.9) });
-    if (P.ha.shots > 0) { VFX.later(0.09, fireHAShot); return; }
+    // the empowered shot: the heavy hurl, a little bigger, with his own lunge layered under it; the page flies at the release
+    if (P.ep.ready > 0) { const A = Game.anim; A.play('empower', { noFx: true, weight: 0.45 }); VFX.later(autoCast(A, 'hurl', 'R', P.atkCd, { k: 1.25 }), fireEmpowered); return; }
+    // a three-beat chain of right-hand casts (the book stays in the left): an overhand flick, a backhand sweep, a hurl from high
+    // over the shoulder; the bolt leaves his palm at the release
+    const A = Game.anim, rel = autoCast(A, ['flick', 'sweep', 'hurl'][autoStep(A)], 'R', P.atkCd);
+    if (P.ha.shots > 0) { VFX.later(rel, () => fireHAShot(autoOrigin(A, 'R'))); return; }
     P.atkPenalty = Math.min(0.45, P.atkCd * 0.8);
-    VFX.later(0.1, fireBasic);
+    VFX.later(rel, () => fireBasic(autoOrigin(A, 'R')));
   },
   preUpdate(dt) {
     if (P.ep.ready > 0) {

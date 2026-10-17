@@ -11,7 +11,8 @@ const SFX_FILES = ['basic1', 'basic2', 'basic3', 'basic_hit1', 'basic_hit2', 'ca
   'jump', 'land', 'shatter', 'shatter_god', 'ult_hit', 'book_flutter', 'glide_loop', 'sonic_boom',
   // The Final Spell (tools/audio/make_sfx10a.py)
   'fs_throw', 'fs_rise', 'fs_charge', 'fs_impact', 'fs_end'];
-// Thoth's voice (v11: one voice, cast by ear - Brooks through the god-voice chain, tools/audio/god11.py)
+// Thoth's voice (v15: Caspian, regal 'majesty' chain on the normal lines - tools/audio/pack15.py; abilities 4 / 5 in the
+// darker 'wrath / mountain echo' chain - tools/audio/wrath15.py; the ult files carry ~3 s echo tails, so their hold times matter)
 const VOICE_PACKS = { thoth: 'Thoth' };
 const SHARED_VOICE = new Set();
 const VOICE_LINES = {
@@ -63,7 +64,16 @@ const GOD_AUDIO_PENDING = new Set([]);   // every god's recordings exist (Cookie
 // lines only one god ships (Bacchus burps and hiccups)
 const GOD_VOICE_EXTRA = { bacchus: { belch: ['belch'], hic: ['hic'] },
   cookie: { passive_eat: ['passive_eat_1', 'passive_eat_2'], q: ['q_1', 'q_2'], e_in: ['e_in'], e_out: ['e_out'], r: ['r_1', 'r_2'],
-    g_horror_whisper: ['g_horror_whisper'], g_scream: ['g_scream'], g_clap_line: ['g_clap_line'],
+    g_clap_line: ['g_clap_line'],
+    // Cookie Horror (G, v14, tools/audio/cookie_horror14.py --render): every whisper lives in g_horror_whisper.mp3, every
+    // name scream in g_scream.mp3. g_coming_<god>: "<NAME>... Cookie Monster is coming for youuuu..." (creepy whisper);
+    // g_name_<god>: Cookie Monster SCREAMS the name (ullr = "Bowelius"; _any = no name / "YOU!!!")
+    g_coming_thoth: ['g_horror_whisper@0.340+4.738'], g_coming_skadi: ['g_horror_whisper@5.408+4.464'], g_coming_bastet: ['g_horror_whisper@10.202+5.063'],
+    g_coming_hecate: ['g_horror_whisper@15.595+4.498'], g_coming_ra: ['g_horror_whisper@20.423+4.738'], g_coming_bacchus: ['g_horror_whisper@25.491+4.330'],
+    g_coming_ullr: ['g_horror_whisper@30.151+4.993'], g_coming_any: ['g_horror_whisper@35.474+4.176'],
+    g_name_thoth: ['g_scream@0.340+1.770'], g_name_skadi: ['g_scream@2.440+1.885'], g_name_bastet: ['g_scream@4.655+1.980'], g_name_hecate: ['g_scream@6.965+1.905'],
+    g_name_ra: ['g_scream@9.200+1.770'], g_name_bacchus: ['g_scream@11.300+2.838'], g_name_ullr: ['g_scream@14.468+2.065'], g_name_any: ['g_scream@16.863+1.800'],
+    g_horror_whisper: ['g_horror_whisper@35.474+4.176'], g_scream: ['g_scream@16.863+1.800'],   // the old keys = the _any takes
     // Cookie Rage (F): every take lives in ONE sprite, f_roar.mp3 (file@offset+duration, tools/audio/cookie_voice3.py --render)
     f_roar: ['f_roar@0.34+2.71', 'f_roar@3.38+3.085'],                                      // "RAAARGH! COOKIIIES!!!" / "GRAAAH! MY! COOKIES!!!"
     f_cry: ['f_roar@6.795+1.215', 'f_roar@8.34+0.98', 'f_roar@9.65+1.015', 'f_roar@10.995+1.385', 'f_roar@12.71+1.3', 'f_roar@14.34+1.14'],

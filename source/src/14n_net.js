@@ -9,7 +9,7 @@
 // takes over (every client reaches the same answer).
 // Single player never gets here: Net.online stays false, nothing is imported and nothing is sent.
 // ============================================================================
-const NET_V = 'tp2-v31';                            // (v31: Cookie Monster in the god list, the K kit event)
+const NET_V = 'tp2-v32';                            // (v32: Cookie Monster's v4 kit - new ability ids, the rage form's own Q E R; v31: Cookie Monster, the K kit event)
 const NET_V_PAD = '';                            // protocol + build: a mismatch is shown in the lobby and blocks Start
 const NET_ABC = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';  // room codes (no 0/O, 1/I/L)
 const NET_TEAMS = ['Blue team', 'Red team'];
@@ -2541,7 +2541,7 @@ Object.assign(Net, {
         if (Array.isArray(ranks)) settings.ranks = ranks.slice(0, 5).map((r) => clamp(r | 0, 1, 5));
         if (lv > 0) settings.level = clamp(lv | 0, 1, 20);
         c.rng = mulberry32(rs >>> 0);
-        const ids = Kit.id === 'ullr' ? [...UL_ORDER.bow, ...UL_ORDER.axe] : Kit.order;
+        const ids = Kit.id === 'ullr' ? [...UL_ORDER.bow, ...UL_ORDER.axe] : Kit.allIds || Kit.order;   // (Cookie Monster: his rage form's own Q E R too)
         if (!ids.includes(id)) return;
         if (Kit.id === 'ullr' && !ABILITY_ORDER.includes(id)) ulSetStance(U.stance === 'bow' ? 'axe' : 'bow');   // (a stance switch was missed: catch up)
         Kit.cast(id, true);

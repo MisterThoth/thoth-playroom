@@ -132,6 +132,18 @@ class PlayerUnit {
 // Balance: the ultimate is the bot's "ability 5" tier - its total damage on one target is at least twice the
 // strongest of the three abilities (all hits / ticks counted), and its CC at least matches theirs (Ullr stays 1).
 // ---------------------------------------------------------------------------
+// Bot basic-attack chains: the player's own (07b_rig.js RigAnimator.gesture / swing): casting gestures for the ranged gods (the
+// bolt leaves the hand on the release frame), clip swings for the melee ones (the blow lands on the measured hit frame), the
+// bow's draw-and-loose aim layer for Ullr. Damage and attack rate are the bot's own, as before.
+const BOT_AUTO = {
+  thoth: { gest: ['flick', 'sweep', 'hurl'] },
+  skadi: { gest: ['hurl', 'flick', 'hurl'], k: [1, 1, 1.25] },
+  hecate: { gest: ['flick', 'flick', 'hurl'], side: ['R', 'L', 'R'] },
+  ra: { gest: ['thrust', 'flick', 'hurl'], side: ['R', 'L', 'R'], disc: true },
+  bastet: { acts: ['claw1', 'claw2', 'claw3'] },
+  bacchus: { acts: ['swing1', 'swing2', 'smash'] },
+  ullr: { bow: true },
+};
 const BOT_KITS = {
   thoth: { pal: 'thoth', ranged: true, range: 11.5, basic: { dmg: 24, anim: 'throw', speed: 30, size: 0.5, glyphs: true, sfx: 'ha_shot1' },
     abil: [
@@ -431,16 +443,22 @@ class BotGod extends ArenaUnit {
   basicAttack(tg) {
     const b = this.bk.basic, as = 1.0 * (1 + 0.012 * (this.level - 1)) * (this.buffs.horus > 0 ? 1.25 : 1);
     this.atkCd = 1 / as; this.castLock = Math.max(this.castLock, this.bk.ranged ? 0.3 : 0.25);
-    this.anim.play(b.anims ? b.anims[this.atkI++ % b.anims.length] : b.anim, { noFx: true });
-    Sound.bot(this.god, b.sfx, { pos: this.pos, gain: 0.4 });
+    // the chain step comes from atkI (online the host sends it with the attack, so a replica plays the same swing)
+    const A = this.anim, ch = BOT_AUTO[this.god], step = this.atkI++ % 3;
+    let hitT = 0.22, side = 'R';
+    if (ch && ch.acts && A.swing) { const sw = A.swing(ch.acts[step], this.atkCd); if (sw) hitT = sw.hit; }
+    else if (ch && ch.gest && A.gesture) { side = ch.side ? ch.side[step] : 'R'; hitT = A.gesture(ch.gest[step], side, this.atkCd, { k: ch.k ? ch.k[step] : 1, noFx: (this.anim.fxK ?? 1) < 0.6 }); }
+    else if (ch && ch.bow) this.botDraw(hitT);
+    else A.play(b.anims ? b.anims[step % b.anims.length] : b.anim, { noFx: true });
+    Sound.bot(this.god, b.sfx, { pos: this.pos, gain: 0.4, delay: Math.max(0, hitT - (this.bk.ranged ? 0.05 : 0.15)) });
     const dmg = b.fixed ?? b.dmg * this.power;
     if (this.bk.ranged) {
-      VFX.later(0.22, () => {
+      VFX.later(hitT, () => {
         if (!this.alive || !tg.alive) return;
-        BotCast.shot(this, { ...b, count: 1, range: this.bk.range + 3, width: 0.5, dmg: b.dmg, fixed: b.fixed, basic: true }, tg);
+        BotCast.shot(this, { ...b, count: 1, range: this.bk.range + 3, width: 0.5, dmg: b.dmg, fixed: b.fixed, basic: true, from: this.castFrom(ch, side) }, tg);
       });
     } else {
-      VFX.later(0.22, () => {
+      VFX.later(hitT, () => {
         if (!this.alive || !tg.alive || this.dist(tg) > this.bk.range + tg.radius + 0.8) return;
         Arena.hurt(tg, dmg, this, { physical: this.bk.physical, basic: true });
         Sound.bot(this.god, b.hitSfx, { pos: tg.pos, gain: 0.35 });
@@ -448,6 +466,23 @@ class BotGod extends ArenaUnit {
         if (k > 0.3) FX2.slash(this.pos.clone().setY(1.2), this.facing, this.bk.pal, { r0: 0.4, r1: 1.6, dur: 0.22, int: 1.2, tilt: rand(-0.4, 0.4) });
       });
     }
+  }
+  // where a basic attack's shot leaves the bot: the casting hand (Ra's staff disc, Ullr's bow) on the release frame
+  castFrom(ch, side) {
+    if (!ch) return null;
+    const R = this.rig, o = new THREE.Vector3();
+    if (ch.bow) { const bw = R.props && R.props.bow; if (!bw) return null; bw.localToWorld(o.set(0, 0, 0.05)); }
+    else if (ch.disc && side === 'R' && R.prop && R.prop.userData.disc) R.prop.userData.disc.getWorldPosition(o);
+    else if (this.anim.castPoint) this.anim.castPoint(side, o);
+    else return null;
+    o.y = clamp(o.y, this.lift + 1.0, this.lift + 2.0);
+    return o;
+  }
+  // Ullr's bow: the player's draw-and-loose aim layer (11h_ullr.js UL_AIM), driven from pose()
+  botDraw(rel) {
+    const A = this.anim, AL = A.aim || (A.aim = { clip: UL_AIM.clip, time: UL_AIM.nock, on: false, w: 0, yaw: UL_AIM.yaw, yawK: 1, full: UL_AIM.full, kin: 12, kout: 5 });
+    this.draw = { t: 0, rel, t0: AL.on && AL.w > 0.5 ? UL_AIM.drawn : UL_AIM.nock };
+    AL.on = true; this.aimHold = rel + UL_AIM.hold;
   }
   tryCast(tg, d) {
     if (this.castLock > 0 || this.react > 0) return;
@@ -497,6 +532,17 @@ class BotGod extends ArenaUnit {
   }
   // pose the model: position, facing, animation (lighter far from the camera)
   pose(dt, t) {
+    const AL = this.anim.aim;
+    if (AL) {   // (Ullr's bow: draw, loose, a little follow-through, redraw; then the aim eases out)
+      const D = this.draw;
+      if (D) {
+        D.t += dt; const r = D.t - D.rel;
+        AL.time = r < 0 ? lerp(D.t0, UL_AIM.drawn, smoothstep(0, D.rel, D.t)) : r < 0.1 ? lerp(UL_AIM.drawn, UL_AIM.follow, r / 0.1) : lerp(UL_AIM.follow, UL_AIM.drawn, smoothstep(0.1, 0.42, r));
+        if (r > 0.42) this.draw = null;
+      }
+      this.aimHold = (this.aimHold || 0) - dt;
+      if (this.aimHold <= 0 || !this.alive) AL.on = false;
+    }
     this.mesh.position.set(this.pos.x, this.lift, this.pos.z);
     this.rig.root.rotation.y = this.facing;
     this.animAcc += dt;
@@ -517,6 +563,7 @@ class BotGod extends ArenaUnit {
 // ---------------------------------------------------------------------------
 const BotCast = {
   cast(b, a, tg) {
+    if (b.anim.aim) { b.anim.aim.on = false; b.draw = null; }   // (an ability lowers Ullr's drawn bow)
     b.anim.play(a.anim === 'dash' ? 'dash' : a.anim, a.anim === 'dash' ? { dur: a.dur || 0.3, dx: 0, dz: -1 } : {});
     if (a.sfx) Sound.bot(b.god, a.sfx, { pos: b.pos, gain: a.ult ? 0.85 : 0.6, big: a.ult });
     const fn = this[a.shape]; if (fn) fn.call(this, b, a, tg);
@@ -544,13 +591,13 @@ const BotCast = {
     const n = a.count || 1, speed = a.speed || 30, aim = this.lead(b, tg, speed).clone(), rnd = b.castRng || Math.random;   // (online: the cast's seeded rolls)
     const fire = (i) => {
       if (!b.alive) return;
-      const o = b.pos.clone().setY(1.35 + b.lift), dir = aim.clone().sub(o).setY(0).normalize();
+      const o = a.from ? a.from.clone() : b.pos.clone().setY(1.35 + b.lift), dir = aim.clone().sub(o).setY(0).normalize();   // (a.from: a basic attack leaves the hand)
       const off = n > 1 && a.spread ? (i - (n - 1) / 2) * a.spread : 0;
       let ang = Math.atan2(dir.x, dir.z) + off;
       const miss = a.miss && rnd() < a.miss;
       if (miss) ang += (rnd() < 0.5 ? -1 : 1) * (0.22 + rnd() * 0.28);
       dir.set(Math.sin(ang), 0, Math.cos(ang));
-      o.addScaledVector(dir, 0.6);
+      if (!a.from) o.addScaledVector(dir, 0.6);
       const s = new ArenaShot({ pos: o, dir, speed, range: a.range || 16, width: a.width || 0.5, size: a.size || 0.5, pal: b.bk.pal, team: b.team, pierce: a.pierce, glyphs: a.glyphs,
         onHit: (u, at) => {
           Arena.hurt(u, this.dmg(b, a), b, { physical: b.bk.physical, basic: a.basic });

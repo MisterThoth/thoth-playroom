@@ -260,13 +260,20 @@ function ulAxeBasic() {
   if (U.comboT <= 0) U.combo = 0;
   const step = U.combo % 3; U.combo++; U.comboT = 1.6;
   const heavy = step === 2, sp = Math.max(1, (heavy ? 0.6 : 0.46) / (P.atkCd * 0.95));
-  Game.anim.play(['chop1', 'chop2', 'chop3'][step], { speed: sp });
+  // a flowing chain (07b_rig.js RigAnimator.swing): each chop grows out of the last one's follow-through; the blow lands as the
+  // axe passes through the target (its wind-up shortened with attack speed, never the whole swing blurred)
+  const A = Game.anim, nm = ['chop1', 'chop2', 'chop3'][step], sw = A.swing ? A.swing(nm, P.atkCd) : null;
+  if (!sw) A.play(nm, { speed: sp });
+  const hitT = sw ? sw.hit : (heavy ? 0.3 : 0.2) / sp;
   P.atkPenalty = Math.min(0.3, P.atkCd * 0.45);
-  Sound.god(`axe_swing${1 + step}`, { gain: 0.85, rate: rand(0.95, 1.05) });
+  Sound.god(`axe_swing${1 + step}`, { gain: 0.85, rate: rand(0.95, 1.05), delay: Math.max(0, hitT - 0.18) });
   const pr = ulProps();
-  ulPropTrail(step === 1 ? pr.axeL : pr.axeR, 0.32 / sp, 0.16);
-  if (heavy) ulPropTrail(pr.axeL, 0.32 / sp, 0.16);
-  VFX.later((heavy ? 0.3 : 0.2) / sp, () => {
+  VFX.later(Math.max(0, hitT - 0.2), () => {
+    if (Kit !== GODS.ullr) return;
+    ulPropTrail(pr.axeR, 0.34, 0.16);
+    if (heavy || step === 1) ulPropTrail(pr.axeL, 0.34, 0.16);
+  });
+  VFX.later(hitT, () => {
     if (Kit !== GODS.ullr) return;
     const c = P.pos.clone(), dir = fwdOf(P.yaw);
     FX2.slash(V3(c.x, 1.2, c.z), P.yaw, 'ullr', { r0: 0.9, r1: 2.5, a0: step === 1 ? -1.3 : 1.3, a1: step === 1 ? 1.3 : -1.3, dur: 0.24, tilt: step === 1 ? 0.25 : -0.25, int: 1.4 });
@@ -274,6 +281,7 @@ function ulAxeBasic() {
     const near = dummiesInCone(c, dir, UL_AXE_RANGE * SU * 1.1, heavy ? 0.95 : 0.8).sort((a, b) => a.pos.distanceToSquared(c) - b.pos.distanceToSquared(c));
     for (const d of heavy ? near : near.slice(0, 1)) {
       ulHit(d, 'basic', 'Thrown Axe');
+      Game.hitStop(heavy ? 0.06 : 0.035, 0.12);   // (the axe bites: a heartbeat of weight)
       const hp = d.pos.clone().setY(1.1);
       ulBurst(hp, heavy ? 0.5 : 0.35, { distort: heavy, light: heavy });
       ulShards(hp, heavy ? 6 : 3, 0.5);

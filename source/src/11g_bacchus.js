@@ -9,7 +9,7 @@ const BAC_TIPSY = 30, BAC_SMASHED = 60;
 // the final's beats (s after the cast) and where the key words fall in the processed voice lines
 const BAC_DF = { strain: 1.4, release: 3.6, cloud: 6.0, radius: 6.5, tick: 0.5 };
 const BAC_IX = 1.5;   // Intoxicate: the wine wave bursts this long after the cast (on "ME!")
-const BAC_VOX = { fart: 1.17, me: 1.415 };   // v13 (Callum)   // "Deadly... FART!" (vowel hit) and "Drink... with... ME!" (onset), measured on assets/voice/bacchus
+const BAC_VOX = { fart: 1.405, me: 1.87 };   // v15 (Callum, wrath)   // "Deadly... FART!" (vowel hit) and "Drink... with... ME!" (onset), measured on assets/voice/bacchus
 const BC = { drunk: 0, hold: 0, combo: 0, comboT: 0, chug: null, chugBuff: 0, nextHit: 0, smashBuff: 0, flop: null, belch: null, intox: null, fart: null, cloud: null,
   drunks: new Set(), lifts: [], hicT: 9, swayT: 0, auras: [] };
 const BCC = {
@@ -158,11 +158,15 @@ function bacchusBasic() {
   if (BC.comboT <= 0) BC.combo = 0;
   const step = BC.combo % 3; BC.combo++; BC.comboT = 1.8;
   const heavy = step === 2;
-  Game.anim.play(['swing1', 'swing2', 'smash'][step], { dur: Math.min(heavy ? 0.72 : 0.55, P.atkCd * 0.95) });
+  // a flowing chain (07b_rig.js RigAnimator.swing): a rising backhand, the forehand sweep back across, then the jug brought down
+  // two-handed from over his head; each swing grows out of the last one's follow-through, the blow lands as the jug passes through
+  const A = Game.anim, nm = ['swing1', 'swing2', 'smash'][step], sw = A.swing ? A.swing(nm, P.atkCd) : null;
+  if (!sw) A.play(nm, { dur: Math.min(heavy ? 0.72 : 0.55, P.atkCd * 0.95) });
+  const hitT = sw ? sw.hit : heavy ? 0.36 : step ? 0.12 : 0.17;
   P.atkPenalty = Math.min(0.35, P.atkCd * 0.5);
-  Sound.god(`swing${1 + step}`, { gain: 0.9 });
-  bacJugTrail(heavy ? 0.55 : 0.36, heavy ? 110 : 60, heavy ? 0.34 : 0.24);
-  VFX.later(heavy ? 0.36 : step ? 0.12 : 0.17, () => {
+  Sound.god(`swing${1 + step}`, { gain: 0.9, delay: Math.max(0, hitT - 0.2) });
+  VFX.later(Math.max(0, hitT - 0.22), () => bacJugTrail(heavy ? 0.5 : 0.34, heavy ? 110 : 60, heavy ? 0.34 : 0.24));
+  VFX.later(hitT, () => {
     const c = P.pos.clone(), dir = fwdOf(P.yaw), yaw = P.yaw, charged = BC.nextHit > 0;
     // the arc: a wine-dark crescent through the swing (the smash leaves its trail of wine instead)
     if (!heavy) FX2.slash(V3(c.x, 1.15, c.z), yaw, step ? 'wine' : 'bacchus', { r0: 1.0, r1: 2.45, a0: step ? 1.35 : -1.35, a1: step ? -1.35 : 1.35, dur: 0.26, tilt: step ? 0.22 : -0.22, int: 1.5 });
@@ -186,6 +190,7 @@ function bacchusBasic() {
     for (const d of hits) {
       const rank = rankOf('ch');
       Combat.deal(d, basicDamage() * (heavy ? 1.3 : 1) + (charged ? AB.ch.bonus[rank - 1] + AB.ch.bonusScale * settings.power : 0), 'basic', charged ? 'Wine Jug (Chug)' : 'Wine Jug');
+      Game.hitStop(heavy ? 0.07 : 0.04, 0.12);   // (the jug connects: a heartbeat of weight)
       const hp = d.pos.clone().setY(1.1);
       FX2.burst(hp, 'bacchus', { size: heavy ? 0.6 : 0.4, sparks: heavy ? 22 : 12, embers: 8, puffs: 1, bursts: 1, distort: heavy });
       bacWine(hp, heavy ? 20 : 12, heavy ? 1.1 : 0.8);

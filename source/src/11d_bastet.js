@@ -56,10 +56,14 @@ function bastetBasic() {
   P.atkCd = 1 / attackSpeed();
   if (BA.comboT <= 0) BA.combo = 0;
   const step = BA.combo % 3; BA.combo++; BA.comboT = 1.6;
-  Game.anim.play(['claw1', 'claw2', 'claw3'][step], { dur: Math.min(0.5, P.atkCd * 0.95), side: step === 1 ? 'L' : 'R' });
+  // a flowing chain (07b_rig.js RigAnimator.swing): a rising slash, the backhand cut back down, the crossed claws torn apart;
+  // each swing grows out of the last one's follow-through, and the strike lands when the claws pass through the target
+  const A = Game.anim, nm = ['claw1', 'claw2', 'claw3'][step], sw = A.swing ? A.swing(nm, P.atkCd, { noFx: false, side: 'R' }) : null;
+  if (!sw) A.play(nm, { dur: Math.min(0.5, P.atkCd * 0.95), side: step === 1 ? 'L' : 'R' });
+  else if (step === 2) A.castFx(nm, 'L');   // (the finisher rakes with both hands)
   P.atkPenalty = Math.min(0.3, P.atkCd * 0.5);
   const dir = fwdOf(P.yaw);
-  VFX.later(0.09, () => {
+  VFX.later(sw ? sw.hit : 0.09, () => {
     const c = P.pos.clone(), heavy = step === 2;
     clawArc(c, P.yaw, 1.9, heavy ? 2.4 : 1.6, heavy ? BAC.amber : BAC.gold, 0.13, heavy ? 1.0 : 1.25, heavy ? 0 : step === 1 ? -1 : 1);
     Sound.god(`swipe${1 + step}`, { gain: 0.85 });
@@ -67,6 +71,7 @@ function bastetBasic() {
     const d = dummiesInCone(c, dir, BASTET_STATS.range * SU * 1.05, heavy ? 1.1 : 0.85).sort((a, b) => a.pos.distanceToSquared(c) - b.pos.distanceToSquared(c))[0];
     if (d) {
       Combat.deal(d, basicDamage() * (heavy ? 1.25 : 1), 'basic', 'Claws', false, true);
+      Game.hitStop(heavy ? 0.06 : 0.035, 0.12);   // (the claws bite: a heartbeat of weight)
       slashSpark(d.pos.clone().setY(1.1), heavy ? 14 : 8, heavy ? BAC.amber : BAC.gold);
       Sound.god(`claw_hit${1 + (step % 2)}`, { gain: 0.8 });
     }
@@ -380,7 +385,7 @@ function castApep() {
   VFX.later(0.5, () => Sound.god('ap_emerge', { gain: 1.05 }));
   VFX.later(1.15, () => { Sound.god('ap_coil', { gain: 0.95 }); Sound.god('ap_cat', { gain: 1.0 }); });
   // "For Ra's light, I cut you DOWN!" - the last word (2.72 s in) falls on the cut (her summons was spoken while she aimed)
-  const apLead = AP_CUT - 2.72;   // v11: DOWN lands 2.72 s into the line - start it early (offset) if the cut comes sooner
+  const apLead = AP_CUT - 2.665;   // v15: DOWN lands 2.665 s into the line - start it early (offset) if the cut comes sooner
   VFX.later(Math.max(0, apLead), () => Sound.voice('fin_roar', { priority: 6, gain: 1.2, cooldown: 0, offset: Math.max(0, -apLead), hold: 3.4 - Math.max(0, -apLead) }));
   Sound.duckMusic(0.25, 4.4, 2.2);
   // the ground of chaos tears open where it will rise

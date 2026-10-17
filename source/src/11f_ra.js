@@ -12,7 +12,7 @@ const BQ_SET = 4.15;          // sunset: right after "Raise the oars... the barq
 // (700 + 1.1 MP), the rays add more (enough to stay above 2 x even with the Pain's +5 % of a god's health) -
 // was 360 + 0.6 MP (+ 22 + 0.06 MP ticks), weaker than the 4
 const BQ_DMG = { burn: [1500, 2.4], ray: [30, 0.08] };
-const BQ_SUN = 1.83;          // "KNEEL... beneath the SUN!" - the last word lands this long after the sunset: the great flare
+const BQ_SUN = 1.95;          // "KNEEL... beneath the SUN!" - the last word lands this long after the sunset: the great flare
 const RA = { sol: [], atkI: 0, divine: null, bless: null, sear: null, bq: null };
 const RCOL = { sun: new THREE.Color(1.0, 0.55, 0.08), gold: new THREE.Color(1.0, 0.7, 0.18), solar: new THREE.Color(1.0, 0.3, 0.03), crimson: new THREE.Color(0.85, 0.1, 0.04), dawn: new THREE.Color(1.0, 0.62, 0.24), core: new THREE.Color(1.0, 0.8, 0.42), lapis: new THREE.Color(0.1, 0.25, 0.9) };
 const raAB = {
@@ -43,11 +43,14 @@ function sunfire(p, n = 4, s = 1, pal = 'ra') {
 function raBasic() {
   if (RA.bq || RA.sear) return;
   P.atkCd = 1 / attackSpeed();
-  Game.anim.play('throw', { dur: Math.min(0.42, P.atkCd * 0.9) });
+  // a three-beat chain: the sun staff thrust along the aim (the orb leaves its disc), a sun flicked from his free left palm,
+  // then the staff hurled down from high over his shoulder
+  const A = Game.anim, step = autoStep(A), side = step === 1 ? 'L' : 'R';
+  const rel = autoCast(A, ['thrust', 'flick', 'hurl'][step], side, P.atkCd);
   P.atkPenalty = Math.min(0.45, P.atkCd * 0.8);
-  VFX.later(0.1, () => {
-    const origin = aimOrigin(), dir = fwdOf(P.yaw);
-    if (Game.thoth.prop) Game.thoth.prop.userData.disc.getWorldPosition(origin);
+  VFX.later(rel, () => {
+    const origin = autoOrigin(A, side), dir = fwdOf(P.yaw);
+    if (side === 'R' && Game.thoth.prop) { Game.thoth.prop.userData.disc.getWorldPosition(origin); origin.y = clamp(origin.y, P.y + 1.1, P.y + 2.0); }
     const g = new THREE.Group(); scene.add(g);
     g.add(glowSprite(VFX.dotTex, RCOL.sun, 0.7, 3)); const rays = glowSprite(GodFX.cellTex(GX.sunrays), RCOL.core, 0.55, 2.4); g.add(rays);
     const trail = VFX.trail(0.36, RCOL.sun, 2.6, 14), helix = makeHelix(2, 0.14, 0.07, RCOL.core, 2.4, 28);

@@ -46,11 +46,14 @@ function witchSwirl(c, n = 4, r = 0.6, pal = 'hecate', size = 1) {
 function hecateBasic() {
   if (HE.key) return;
   P.atkCd = 1 / attackSpeed();
-  Game.anim.play('throw', { dur: Math.min(0.42, P.atkCd * 0.9), side: HE.atkI % 2 ? 'L' : 'R' });
+  // a three-beat chain: a violet orb flicked from the sceptre hand, a rose one from the torch hand, then a heavy violet hurl
+  // from high over her shoulder; each orb leaves her palm at the release
+  const A = Game.anim, step = autoStep(A), side = step === 1 ? 'L' : 'R', left = side === 'L';
+  const rel = autoCast(A, step === 2 ? 'hurl' : 'flick', side, P.atkCd);
   P.atkPenalty = Math.min(0.45, P.atkCd * 0.8);
-  const left = HE.atkI++ % 2 === 1;
-  VFX.later(0.1, () => {
-    const origin = aimOrigin(), dir = fwdOf(P.yaw), col = left ? HCOL.magenta : HCOL.violet, pal = left ? 'hexpink' : 'hecate';
+  HE.atkI++;
+  VFX.later(rel, () => {
+    const origin = autoOrigin(A, side), dir = fwdOf(P.yaw), col = left ? HCOL.magenta : HCOL.violet, pal = left ? 'hexpink' : 'hecate';
     FX2.burst(origin, pal, { size: 0.3, sparks: 8, embers: 4, puffs: 1, bursts: 1, light: false, distort: false });
     const g = new THREE.Group(); scene.add(g);
     g.add(glowSprite(VFX.dotTex, col, 0.55, 1.8)); const sk = glowSprite(GodFX.cellTex(GX.skull), HCOL.star, 0.34, 1.5); g.add(sk);
@@ -417,7 +420,7 @@ function castKey() {
   VFX.later(2.1, () => Sound.god('hk_drag', { gain: 0.9 }));
   VFX.later(2.2, () => Sound.god('hk_hounds', { gain: 0.85 }));
   // the moon goes dark on screen; she speaks the second half - "Hades' gates know my KEY" lands as the key stabs (1.6 s)
-  Sound.voice('fin_charge', { priority: 5, gain: 1.15, cooldown: 0, offset: 1.32, hold: 2.2 });
+  Sound.voice('fin_charge', { priority: 5, gain: 1.15, cooldown: 0, offset: 1.545, hold: 2.2 });
   VFX.later(HK_SLAM - 1.8, () => Sound.voice('fin_roar', { priority: 6, gain: 1.2, cooldown: 0, hold: 2.5 }));   // "Down... to the DEAD" - on the slam
   Sound.duckMusic(0.2, 4.8, 2.4);
   K.sigil = GodFX.decal(c, GodFX.sig.crossroads, HCOL.magenta, R * 2.4, 9999, { spin: 0.25, intensity: 0.7 }); K.sigil.hold = () => smoothstep(0.2, 0.9, K.t) * (K.fade ?? 1);
